@@ -21,7 +21,14 @@ yarn-error.log*
 # System files
 .DS_Store
 Thumbs.db
-
-# Documentation / Agent guides (if ignored)
-docs/
-AGENTS.MD
+docs/API.md
+docs/ARCHITECTURE.md
+AGENTS.md
+docs/DATABASE.md
+docs/DESIGN.md
+docs/PHASES.md
+docs/PROJECT_STATUS.md
+.gitignore
+docs/SPEC.md
+docs/SECURITY.md
+docs/TESTING.md

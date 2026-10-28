@@ -1,0 +1,221 @@
+/**
+ * AmbuRoute Simulated Mock Data — Patna, Bihar Deployment
+ *
+ * NOTE: Explicitly designated as demonstration / prototype data.
+ * Real GPS tracking, live routing geometry, and hospital queueing
+ * require backend provider integrations.
+ */
+
+export const DEMO_DESTINATIONS = [
+  {
+    id: 'dest-pmch',
+    name: 'Patna Medical College and Hospital (PMCH), Ashok Rajpath',
+    shortName: 'PMCH Emergency Trauma Center',
+    city: 'Patna, Bihar',
+    distanceKm: 6.0,
+    baseEtaMins: 18,
+  },
+  {
+    id: 'dest-igims',
+    name: 'Indira Gandhi Institute of Medical Sciences (IGIMS), Patna',
+    shortName: 'IGIMS Critical Care Block',
+    city: 'Patna, Bihar',
+    distanceKm: 5.2,
+    baseEtaMins: 14,
+  },
+  {
+    id: 'dest-nmch',
+    name: 'Nalanda Medical College & Hospital (NMCH), Kankarbagh / Agamkuan',
+    shortName: 'NMCH Agamkuan Emergency',
+    city: 'Patna, Bihar',
+    distanceKm: 8.4,
+    baseEtaMins: 22,
+  },
+  {
+    id: 'dest-aiims',
+    name: 'AIIMS Patna, Phulwari Sharif',
+    shortName: 'AIIMS Patna Trauma Center',
+    city: 'Patna, Bihar',
+    distanceKm: 14.5,
+    baseEtaMins: 32,
+  },
+];
+
+export const DEMO_VEHICLES = [
+  {
+    id: 'AMB-108',
+    callSign: 'Patna Emergency 108 — Alpha',
+    vehicleNumber: 'BR-01-EA-108',
+    driverName: 'Amitabh Sen',
+    authorized: true,
+  },
+  {
+    id: 'AMB-102',
+    callSign: 'Patna Rapid Response 102 — Beta',
+    vehicleNumber: 'BR-01-AM-102',
+    driverName: 'Pankaj Kumar',
+    authorized: true,
+  },
+];
+
+export const INITIAL_ROUTE = {
+  id: 'route-primary',
+  name: 'Primary: via Bailey Road & Fraser Road to PMCH',
+  summary: 'Direct arterial route along Bailey Road through Dak Bungalow towards Ashok Rajpath',
+  totalDistanceKm: 6.0,
+  initialEtaMins: 14,
+  currentEtaMins: 20, // Slowed due to traffic & blockage
+  congestionLevel: 'CRITICAL',
+  segments: [
+    {
+      id: 'seg-1',
+      roadName: 'Bailey Road / Jawaharlal Nehru Marg',
+      distanceMeters: 1400,
+      status: 'TRAFFIC_HIGH',
+      etaSeconds: 280,
+      passed: false,
+    },
+    {
+      id: 'seg-2',
+      roadName: 'Dak Bungalow — Fraser Road Crossing',
+      distanceMeters: 1200,
+      status: 'ROAD_BLOCKED',
+      etaSeconds: 520,
+      passed: false,
+    },
+    {
+      id: 'seg-3',
+      roadName: 'Gandhi Maidan South Corridor',
+      distanceMeters: 1500,
+      status: 'TRAFFIC_HIGH',
+      etaSeconds: 300,
+      passed: false,
+    },
+    {
+      id: 'seg-4',
+      roadName: 'Ashok Rajpath East',
+      distanceMeters: 1100,
+      status: 'TRAFFIC_HIGH',
+      etaSeconds: 240,
+      passed: false,
+    },
+    {
+      id: 'seg-5',
+      roadName: 'PMCH Emergency Trauma Gate',
+      distanceMeters: 800,
+      status: 'CLEAR',
+      etaSeconds: 90,
+      passed: false,
+    },
+  ],
+};
+
+export const ALTERNATIVE_ROUTE = {
+  id: 'route-alt-1',
+  name: 'Alternative: via Atal Path & JP Ganga Path Expressway',
+  summary: 'Bypasses blocked Fraser Road bottleneck using high-capacity riverfront corridor to Ashok Rajpath',
+  totalDistanceKm: 7.8,
+  currentEtaMins: 14,
+  timeSavingMins: 6,
+  congestionLevel: 'CLEAR',
+  recommendationReason: 'Dak Bungalow — Fraser Road is blocked by multiple citizen observations. Transit via Atal Path and JP Ganga Path riverfront bypass offers an estimated saving of 6 minutes.',
+  segments: [
+    {
+      id: 'alt-seg-1',
+      roadName: 'Boring Road Turnoff',
+      distanceMeters: 1000,
+      status: 'CLEAR',
+      etaSeconds: 110,
+    },
+    {
+      id: 'alt-seg-2',
+      roadName: 'Atal Path Express Corridor',
+      distanceMeters: 2800,
+      status: 'CLEAR',
+      etaSeconds: 200,
+    },
+    {
+      id: 'alt-seg-3',
+      roadName: 'JP Ganga Path (Marine Drive)',
+      distanceMeters: 3100,
+      status: 'CLEAR',
+      etaSeconds: 220,
+    },
+    {
+      id: 'alt-seg-4',
+      roadName: 'PMCH Dedicated Ganga Path Ramp',
+      distanceMeters: 900,
+      status: 'CLEAR',
+      etaSeconds: 80,
+    },
+  ],
+};
+
+export const INITIAL_TRAFFIC_REPORTS = [
+  {
+    id: 'rep-1',
+    reportType: 'ROAD_BLOCKED',
+    roadSegment: 'Dak Bungalow — Fraser Road Crossing',
+    locationDescription: 'Fallen overhead cables and protest gathering blocking both lanes towards Gandhi Maidan',
+    timestamp: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+    freshness: 'FRESH',
+    verifiedCount: 5,
+    source: 'Traffic Police Observation',
+    status: 'ACTIVE',
+  },
+  {
+    id: 'rep-2',
+    reportType: 'TRAFFIC_HIGH',
+    roadSegment: 'Bailey Road / Jawaharlal Nehru Marg',
+    locationDescription: 'Heavy slow crawl approaching Income Tax roundabout flyover',
+    timestamp: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
+    freshness: 'FRESH',
+    verifiedCount: 4,
+    source: 'City Bus Driver',
+    status: 'ACTIVE',
+  },
+  {
+    id: 'rep-3',
+    reportType: 'CLEAR',
+    roadSegment: 'JP Ganga Path (Marine Drive)',
+    locationDescription: 'Riverfront expressway completely free-flowing, zero congestion',
+    timestamp: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+    freshness: 'FRESH',
+    verifiedCount: 3,
+    source: 'Commuter on Two-Wheeler',
+    status: 'ACTIVE',
+  },
+  {
+    id: 'rep-4',
+    reportType: 'TRAFFIC_HIGH',
+    roadSegment: 'Boring Road',
+    locationDescription: 'Slow-moving market traffic near roundabout',
+    timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+    freshness: 'FRESH',
+    verifiedCount: 2,
+    source: 'Local Auto Driver',
+    status: 'ACTIVE',
+  },
+  {
+    id: 'rep-5',
+    reportType: 'CLEAR',
+    roadSegment: 'Kankarbagh Main Road',
+    locationDescription: 'Road conditions normal, signals operating cleanly',
+    timestamp: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+    freshness: 'STALE',
+    verifiedCount: 1,
+    source: 'Pedestrian',
+    status: 'STALE',
+  },
+  {
+    id: 'rep-6',
+    reportType: 'CANNOT_ASSESS',
+    roadSegment: 'Ashok Rajpath East',
+    locationDescription: 'Water pipe repair and poor visibility near alleyway; cannot verify if ambulance clearance lane is open',
+    timestamp: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
+    freshness: 'FRESH',
+    verifiedCount: 2,
+    source: 'Local Resident',
+    status: 'ACTIVE',
+  },
+];

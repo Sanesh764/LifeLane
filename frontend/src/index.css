@@ -1,0 +1,194 @@
+/* ==========================================================================
+   AmbuRoute Design System: Signal & Motion Tokens
+   Source of Truth: docs/DESIGN.md
+   - Typography: Space Grotesk, IBM Plex Sans, IBM Plex Mono (Phase 1.1)
+   - Surfaces: Graphite 950/900/800/700 and Ivory 100/200/300
+   - Accents: Signal Amber, Medical Mint, Emergency Red (with Dark text variants)
+   - Spacing: 4px-based scale (--space-1 to --space-20)
+   - Radii: Controlled system (--radius-sm to --radius-pill)
+   - Borders: Subtle light and dark border tokens
+   ========================================================================== */
+
+:root {
+  /* ------------------------------------------------------------------------
+     1. Brand & Dark Surfaces (Graphite)
+     ------------------------------------------------------------------------ */
+  --color-graphite-950: #101820; /* Main dark background */
+  --color-graphite-900: #17232D; /* Primary dark surface */
+  --color-graphite-800: #223340; /* Secondary dark surface */
+  --color-graphite-700: #344754; /* Borders and muted dark elements */
+
+  /* ------------------------------------------------------------------------
+     2. Light Surfaces (Ivory)
+     ------------------------------------------------------------------------ */
+  --color-ivory-100: #FAF8F2;    /* Main light background */
+  --color-ivory-200: #F0EEE6;    /* Secondary light surface */
+  --color-ivory-300: #E0DED4;    /* Light borders and dividers */
+
+  /* ------------------------------------------------------------------------
+     3. Text & Content Colors
+     ------------------------------------------------------------------------ */
+  --color-ink-900: #18232C;      /* Primary text on light backgrounds */
+  --color-ink-600: #58646D;      /* Secondary text on light backgrounds */
+  --color-white: #FFFFFF;        /* High-contrast text or dark surfaces */
+  --color-muted-slate: #91A0AA;  /* Secondary information on dark surfaces */
+
+  /* ------------------------------------------------------------------------
+     4. Semantic Accents (Signal & Motion)
+     ------------------------------------------------------------------------ */
+  --color-signal-amber: #F2B544; /* Heavy-traffic warnings & attention states */
+  --color-amber-dark: #98620B;   /* Warning text on light surfaces */
+  --color-medical-mint: #2BD9A0; /* Positive & confirmed operational states */
+  --color-mint-dark: #087A59;    /* Positive text on light surfaces */
+  --color-emergency-red: #E44D4D;/* Critical emergency indicators & road blocks */
+  --color-red-dark: #A52B32;     /* Critical text on light surfaces */
+
+  /* ------------------------------------------------------------------------
+     5. Typography: Font Families & Scale (Preserved from Phase 1.1)
+     ------------------------------------------------------------------------ */
+  --font-display: "Space Grotesk", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-interface: "IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-technical: "IBM Plex Mono", "SF Mono", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+
+  /* Typography Scale Tokens */
+  --text-display-xl: 3.5rem;   /* 56px */
+  --text-display-lg: 2.75rem;  /* 44px */
+  --text-heading-1: 2.25rem;   /* 36px */
+  --text-heading-2: 1.75rem;   /* 28px */
+  --text-heading-3: 1.375rem;  /* 22px */
+  --text-heading-4: 1.125rem;  /* 18px */
+  --text-body-lg: 1.0625rem;   /* 17px */
+  --text-body: 0.9375rem;      /* 15px */
+  --text-body-sm: 0.8125rem;   /* 13px */
+  --text-label: 0.75rem;       /* 12px */
+  --text-technical: 0.8125rem; /* 13px */
+
+  /* Line Heights */
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.6;
+
+  /* Font Weights */
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* ------------------------------------------------------------------------
+     6. Spacing System (4px-based Scale)
+     ------------------------------------------------------------------------ */
+  --space-1: 4px;              /* Fine separation */
+  --space-2: 8px;              /* Compact internal spacing */
+  --space-3: 12px;             /* Input and icon spacing */
+  --space-4: 16px;             /* Standard component spacing */
+  --space-5: 20px;             /* Medium grouping */
+  --space-6: 24px;             /* Standard section separation */
+  --space-8: 32px;             /* Large grouping */
+  --space-10: 40px;            /* Section separation */
+  --space-12: 48px;            /* Major section separation */
+  --space-16: 64px;            /* Large page spacing */
+  --space-20: 80px;            /* Desktop hero spacing */
+
+  /* ------------------------------------------------------------------------
+     7. Shape & Border Radius System
+     ------------------------------------------------------------------------ */
+  --radius-sm: 6px;            /* Compact inputs and small labels */
+  --radius-md: 10px;           /* Buttons and standard controls */
+  --radius-lg: 14px;           /* Information panels */
+  --radius-xl: 20px;           /* Major feature panels */
+  --radius-pill: 999px;        /* Status chips and pill-shaped labels */
+
+  /* ------------------------------------------------------------------------
+     8. Borders
+     ------------------------------------------------------------------------ */
+  --border-light: 1px solid var(--color-ivory-300);
+  --border-dark: 1px solid var(--color-graphite-700);
+
+  /* ------------------------------------------------------------------------
+     9. Focus & Interaction
+     ------------------------------------------------------------------------ */
+  --focus-ring-color: var(--color-signal-amber);
+  --focus-ring-width: 3px;
+  --focus-ring: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+
+  /* ------------------------------------------------------------------------
+     10. Layout Boundaries
+     ------------------------------------------------------------------------ */
+  --content-max-width: 1200px;
+  --reading-max-width: 720px;
+}
+
+/* ==========================================================================
+   Base Elements & Global Defaults
+   ========================================================================== */
+html {
+  font-family: var(--font-interface);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  box-sizing: border-box;
+}
+
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-interface);
+  font-size: var(--text-body);
+  line-height: var(--leading-normal);
+  font-weight: var(--font-regular);
+  color: var(--color-ink-900);
+  background-color: var(--color-ivory-100);
+}
+
+/* Headings: Space Grotesk (Preserved from Phase 1.1) */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: var(--font-semibold);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+h1 {
+  font-size: var(--text-heading-1);
+  line-height: var(--leading-tight);
+}
+
+h2 {
+  font-size: var(--text-heading-2);
+  line-height: 1.2;
+}
+
+h3 {
+  font-size: var(--text-heading-3);
+  line-height: var(--leading-snug);
+}
+
+h4 {
+  font-size: var(--text-heading-4);
+  line-height: 1.35;
+}
+
+/* Technical & Monospaced Information: IBM Plex Mono */
+code, kbd, samp, pre, .font-technical {
+  font-family: var(--font-technical);
+  font-feature-settings: "tnum" on, "zero" on;
+}
+
+/* Typography Utility Classes */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-interface {
+  font-family: var(--font-interface);
+}
+
+.font-mono,
+.font-technical {
+  font-family: var(--font-technical);
+}
