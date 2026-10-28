@@ -28,11 +28,11 @@ export function DriverPage() {
 
   return (
     <div className="dispatch-console-page">
-      {/* Top System Status Ribbon */}
+      {/* 1. Top System Status Ribbon (Mission Status & Demo Indicator) */}
       <div className="dispatch-top-ribbon">
         <div className="ribbon-brand-block">
           <Badge variant="warning" size="sm">DEMO SIMULATION</Badge>
-          <span className="ribbon-system-title">AMBUROUTE EMERGENCY DISPATCH CONSOLE</span>
+          <span className="ribbon-system-title">AMBUROUTE EMERGENCY COCKPIT</span>
           <span className="ribbon-divider">|</span>
           <span className="ribbon-sector">PATNA CENTRAL ARTERIAL SECTOR</span>
         </div>
@@ -53,17 +53,31 @@ export function DriverPage() {
         </div>
       </div>
 
+      {/* 2. Current Trip Info & Destination Summary (Prominent Mobile Card) */}
+      <div className="dispatch-mobile-trip-summary">
+        <div className="summary-dest-card">
+          <div className="summary-dest-meta-tag">EMERGENCY DESTINATION · TARGET BASE</div>
+          <div className="summary-dest-name">{selectedDestination.name}</div>
+          <div className="summary-dest-sub">
+            Trauma Center · Distance: {selectedDestination.distanceKm} km · Base Transit: ~{selectedDestination.baseEtaMins} min
+          </div>
+        </div>
+        <div className="summary-vehicle-tag">
+          <span>Assigned Unit: <strong>{selectedVehicle.callSign}</strong> ({selectedVehicle.vehicleNumber})</span>
+        </div>
+      </div>
+
       {/* Structured Three-Zone Workspace Layout */}
       <div className="dispatch-three-zone-grid">
         {/* ===================================================================
-           ZONE 1 (Left): Mission and Dispatch Controls
+           ZONE 1 (Left on Desktop, Section 7 on Mobile): Mission & Dispatch Controls
            =================================================================== */}
         <aside className="dispatch-zone dispatch-zone--left" aria-label="Dispatch Controls">
           <TripControls />
         </aside>
 
         {/* ===================================================================
-           ZONE 2 (Center): Geographic Route Map
+           ZONE 2 (Center on Desktop, Section 3 on Mobile): Geographic Route Map
            =================================================================== */}
         <main className="dispatch-zone dispatch-zone--center" aria-label="Geographic Route Navigation">
           {/* Hands-Free Voice Guidance Audio Notice */}
@@ -76,20 +90,13 @@ export function DriverPage() {
         </main>
 
         {/* ===================================================================
-           ZONE 3 (Right): Active Incident & Route Intelligence
+           ZONE 3 (Right on Desktop, Sections 4, 5, 6 on Mobile): Active Intelligence
            =================================================================== */}
         <aside className="dispatch-zone dispatch-zone--right" aria-label="Route Intelligence & Incident Feed">
-          {/* Conditional Detour Decision Card (Top priority in right sidebar when active) */}
-          {activeRecommendation && (
-            <div className="dispatch-sidebar-alert-slot">
-              <RouteComparisonPanel />
-            </div>
-          )}
-
-          {/* Mission Telemetry & Waypoint Progression */}
+          {/* Mission Telemetry & Waypoint Progression (Section 4 on Mobile) */}
           <ActiveTripPanel />
 
-          {/* Live Incident & Community Traffic Observations Feed */}
+          {/* Live Incident & Community Traffic Observations Feed (Section 5 on Mobile) */}
           <div className="dispatch-incident-panel">
             <div className="incident-panel-header">
               <div className="incident-panel-title">PATNA CORRIDOR OBSERVATIONS</div>
@@ -97,6 +104,13 @@ export function DriverPage() {
             </div>
             <TrafficFeed />
           </div>
+
+          {/* Detour Decision Card (Section 6 on Mobile, when active) */}
+          {activeRecommendation && (
+            <div className="dispatch-sidebar-alert-slot">
+              <RouteComparisonPanel />
+            </div>
+          )}
         </aside>
       </div>
     </div>

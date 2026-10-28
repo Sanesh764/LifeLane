@@ -60,7 +60,7 @@ export function RouteComparisonPanel() {
 
   // Active alternative route recommendation awaiting driver decision!
   return (
-    <Card variant="graphite" className="route-decision-card">
+    <Card variant="surface" className="route-decision-card">
       <div className="decision-card-header">
         <div className="decision-header-left">
           <div className="decision-alert-icon">

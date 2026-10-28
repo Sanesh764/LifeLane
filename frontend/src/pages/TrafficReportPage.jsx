@@ -65,7 +65,7 @@ export function TrafficReportPage() {
 
           {/* Selected Incident Inspector Card */}
           {selectedIncident && (
-            <Card variant="graphite" className="incident-inspector-card">
+            <Card variant="surface" className="incident-inspector-card">
               <div className="inspector-header">
                 <div className="inspector-badge-wrap">
                   <Badge

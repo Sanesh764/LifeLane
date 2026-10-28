@@ -26,7 +26,7 @@ export function ActiveTripPanel() {
   const nextSegment = currentRoute.segments[currentSegmentIdx + 1];
 
   return (
-    <Card variant="graphite" className="telemetry-panel-card">
+    <Card variant="surface" className="telemetry-panel-card">
       {/* Telemetry Metric Strip */}
       <div className="telemetry-metrics-grid">
         <div className="telemetry-cell">

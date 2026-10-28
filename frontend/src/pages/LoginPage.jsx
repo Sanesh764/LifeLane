@@ -57,14 +57,14 @@ export function LoginPage() {
           </div>
         )}
 
-        <Card variant="graphite" className="login-card">
+        <Card variant="surface" className="login-card">
           <div className="login-card__header">
             <div className="login-brand-icon">
-              <ShieldCheckIcon size={28} className="text-amber" />
+              <ShieldCheckIcon size={28} className="text-primary" />
             </div>
             <div>
               <div className="login-badge-wrap">
-                <Badge variant="warning" size="sm">AUTHORIZED ACCESS ONLY</Badge>
+                <Badge variant="clear" size="sm">AUTHORIZED ACCESS ONLY</Badge>
               </div>
               <h1 className="login-title">Driver Cockpit Authorization</h1>
               <p className="login-subtitle">

@@ -33,7 +33,7 @@ export function TripControls() {
   const isTripActive = tripStatus === 'ACTIVE';
 
   return (
-    <Card variant="graphite" className="dispatch-controls-card">
+    <Card variant="surface" className="dispatch-controls-card">
       {/* Driver Identity & Session Header */}
       <div className="dispatch-driver-card">
         <div className="driver-header-top">

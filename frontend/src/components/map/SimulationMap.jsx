@@ -129,10 +129,28 @@ const createWaypointIcon = (label) =>
   });
 
 /**
- * Internal Map Controller for Programmatic Pan, Zoom, and Recenter
+ * Internal Map Controller for Programmatic Pan, Zoom, Recenter, and Viewport Resize
  */
 function MapController({ center, zoom, shouldRecenter, onRecentered }) {
   const map = useMap();
+
+  // Invalidate map size on window resize or initial render to prevent gray/unrendered tiles
+  useEffect(() => {
+    const handleResize = () => {
+      map.invalidateSize();
+    };
+
+    window.addEventListener('resize', handleResize);
+    // Timeout to ensure DOM container transitions/layouts have finished
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 250);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timer);
+    };
+  }, [map]);
 
   useEffect(() => {
     if (shouldRecenter && center) {

@@ -1,50 +1,57 @@
 /* ==========================================================================
-   AmbuRoute Design System: Signal & Motion Tokens
-   Source of Truth: docs/DESIGN.md
-   - Typography: Space Grotesk, IBM Plex Sans, IBM Plex Mono (Phase 1.1)
-   - Surfaces: Graphite 950/900/800/700 and Ivory 100/200/300
-   - Accents: Signal Amber, Medical Mint, Emergency Red (with Dark text variants)
-   - Spacing: 4px-based scale (--space-1 to --space-20)
-   - Radii: Controlled system (--radius-sm to --radius-pill)
-   - Borders: Subtle light and dark border tokens
+   AmbuRoute Design System: Healthcare Light Brand Tokens
+   Source of Truth: Light-Only Premium Emergency Transit System
+   - Brand Palette: Healthcare Green (#16865B) & Deep Teal (#0F766E)
+   - Light Surfaces: Pure White (#FFFFFF) & Soft Green-Tint (#EAF4EE)
+   - Background: Crisp Light (#F5F8F6)
+   - Semantic: Clear/Success (#16865B), Warning (#B77912), Emergency (#D93645)
+   - Typography: Space Grotesk, IBM Plex Sans, IBM Plex Mono
    ========================================================================== */
 
 :root {
   /* ------------------------------------------------------------------------
-     1. Brand & Dark Surfaces (Graphite)
+     1. New Healthcare Light Palette (Primary Brand Tokens)
      ------------------------------------------------------------------------ */
-  --color-graphite-950: #101820; /* Main dark background */
-  --color-graphite-900: #17232D; /* Primary dark surface */
-  --color-graphite-800: #223340; /* Secondary dark surface */
-  --color-graphite-700: #344754; /* Borders and muted dark elements */
+  --color-primary: #16865B;        /* Primary green actions and brand accents */
+  --color-primary-hover: #116B48;  /* Hover and pressed states */
+  --color-secondary: #0F766E;      /* Teal accents, navigation indicators & secondary actions */
+  --color-page: #F5F8F6;           /* Main page background */
+  --color-surface: #FFFFFF;        /* Cards, navigation, forms and panels */
+  --color-surface-soft: #EAF4EE;   /* Gentle green-tinted sections */
+  --color-border: #DCE7DF;         /* Subtle borders and dividers */
+  --color-text: #24352D;           /* Main readable text */
+  --color-text-muted: #63756B;     /* Supporting descriptions and metadata */
+  --color-success: #16865B;        /* Clear road, confirmed actions and authorized states */
+  --color-warning: #B77912;        /* Traffic congestion and caution */
+  --color-emergency: #D93645;      /* Active emergency alerts and serious road hazards */
+  --color-info: #2472B8;           /* General informational states */
 
   /* ------------------------------------------------------------------------
-     2. Light Surfaces (Ivory)
+     2. Backward-Compatible Semantic Aliases (Mapped to Light Tokens)
      ------------------------------------------------------------------------ */
-  --color-ivory-100: #FAF8F2;    /* Main light background */
-  --color-ivory-200: #F0EEE6;    /* Secondary light surface */
-  --color-ivory-300: #E0DED4;    /* Light borders and dividers */
+  --color-graphite-950: #FFFFFF;   /* Replaced dark background with clean white */
+  --color-graphite-900: #FFFFFF;   /* Replaced dark surface with clean white */
+  --color-graphite-800: #F5F8F6;   /* Replaced dark surface with page background */
+  --color-graphite-700: #DCE7DF;   /* Replaced dark border with light border */
+
+  --color-ivory-100: #F5F8F6;      /* Main light background */
+  --color-ivory-200: #EAF4EE;      /* Secondary light surface */
+  --color-ivory-300: #DCE7DF;      /* Light borders and dividers */
+
+  --color-ink-900: #24352D;        /* Primary text on light surfaces */
+  --color-ink-600: #63756B;        /* Secondary supporting text */
+  --color-white: #FFFFFF;          /* Pure white surfaces & card elements */
+  --color-muted-slate: #63756B;    /* Muted slate mapped to accessible text muted */
+
+  --color-signal-amber: #B77912;   /* Warnings and traffic congestion */
+  --color-amber-dark: #8F5B05;     /* Dark amber text */
+  --color-medical-mint: #16865B;   /* Healthcare green success */
+  --color-mint-dark: #116B48;      /* Deep green text */
+  --color-emergency-red: #D93645;  /* Critical emergency red */
+  --color-red-dark: #A8202E;       /* Deep red text */
 
   /* ------------------------------------------------------------------------
-     3. Text & Content Colors
-     ------------------------------------------------------------------------ */
-  --color-ink-900: #18232C;      /* Primary text on light backgrounds */
-  --color-ink-600: #58646D;      /* Secondary text on light backgrounds */
-  --color-white: #FFFFFF;        /* High-contrast text or dark surfaces */
-  --color-muted-slate: #91A0AA;  /* Secondary information on dark surfaces */
-
-  /* ------------------------------------------------------------------------
-     4. Semantic Accents (Signal & Motion)
-     ------------------------------------------------------------------------ */
-  --color-signal-amber: #F2B544; /* Heavy-traffic warnings & attention states */
-  --color-amber-dark: #98620B;   /* Warning text on light surfaces */
-  --color-medical-mint: #2BD9A0; /* Positive & confirmed operational states */
-  --color-mint-dark: #087A59;    /* Positive text on light surfaces */
-  --color-emergency-red: #E44D4D;/* Critical emergency indicators & road blocks */
-  --color-red-dark: #A52B32;     /* Critical text on light surfaces */
-
-  /* ------------------------------------------------------------------------
-     5. Typography: Font Families & Scale (Preserved from Phase 1.1)
+     3. Typography: Font Families & Scale
      ------------------------------------------------------------------------ */
   --font-display: "Space Grotesk", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-interface: "IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -76,7 +83,7 @@
   --font-bold: 700;
 
   /* ------------------------------------------------------------------------
-     6. Spacing System (4px-based Scale)
+     4. Spacing System (4px-based Scale)
      ------------------------------------------------------------------------ */
   --space-1: 4px;              /* Fine separation */
   --space-2: 8px;              /* Compact internal spacing */
@@ -91,7 +98,7 @@
   --space-20: 80px;            /* Desktop hero spacing */
 
   /* ------------------------------------------------------------------------
-     7. Shape & Border Radius System
+     5. Shape & Border Radius System
      ------------------------------------------------------------------------ */
   --radius-sm: 6px;            /* Compact inputs and small labels */
   --radius-md: 10px;           /* Buttons and standard controls */
@@ -100,20 +107,24 @@
   --radius-pill: 999px;        /* Status chips and pill-shaped labels */
 
   /* ------------------------------------------------------------------------
-     8. Borders
+     6. Borders & Elevation
      ------------------------------------------------------------------------ */
-  --border-light: 1px solid var(--color-ivory-300);
-  --border-dark: 1px solid var(--color-graphite-700);
+  --border-light: 1px solid var(--color-border);
+  --border-dark: 1px solid var(--color-border);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.08);
 
   /* ------------------------------------------------------------------------
-     9. Focus & Interaction
+     7. Focus & Interaction
      ------------------------------------------------------------------------ */
-  --focus-ring-color: var(--color-signal-amber);
+  --focus-ring-color: var(--color-primary);
   --focus-ring-width: 3px;
-  --focus-ring: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+  --focus-ring: 0 0 0 var(--focus-ring-width) rgba(22, 134, 91, 0.25);
 
   /* ------------------------------------------------------------------------
-     10. Layout Boundaries
+     8. Layout Boundaries
      ------------------------------------------------------------------------ */
   --content-max-width: 1200px;
   --reading-max-width: 720px;
@@ -141,16 +152,57 @@ body {
   font-size: var(--text-body);
   line-height: var(--leading-normal);
   font-weight: var(--font-regular);
-  color: var(--color-ink-900);
-  background-color: var(--color-ivory-100);
+  color: var(--color-text);
+  background-color: var(--color-page);
 }
 
-/* Headings: Space Grotesk (Preserved from Phase 1.1) */
+/* Headings: Space Grotesk */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
   font-weight: var(--font-semibold);
   letter-spacing: -0.02em;
+  color: var(--color-text);
   margin: 0;
+}
+
+h1 {
+  font-size: var(--text-heading-1);
+  line-height: var(--leading-tight);
+}
+
+h2 {
+  font-size: var(--text-heading-2);
+  line-height: 1.2;
+}
+
+h3 {
+  font-size: var(--text-heading-3);
+  line-height: var(--leading-snug);
+}
+
+h4 {
+  font-size: var(--text-heading-4);
+  line-height: 1.35;
+}
+
+/* Technical & Monospaced Information: IBM Plex Mono */
+code, kbd, samp, pre, .font-technical {
+  font-family: var(--font-technical);
+  font-feature-settings: "tnum" on, "zero" on;
+}
+
+/* Typography Utility Classes */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-interface {
+  font-family: var(--font-interface);
+}
+
+.font-mono,
+.font-technical {
+  font-family: var(--font-technical);
 }
 
 h1 {

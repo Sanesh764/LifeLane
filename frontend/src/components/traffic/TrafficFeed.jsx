@@ -31,7 +31,7 @@ export function TrafficFeed({ onSelectReport }) {
   };
 
   return (
-    <Card variant="graphite" className="traffic-feed-widget">
+    <Card variant="surface" className="traffic-feed-widget">
       {/* Feed Filter Chips */}
       <div className="traffic-feed-filters-row">
         {['ALL', 'ROAD_BLOCKED', 'TRAFFIC_HIGH', 'CLEAR', 'CANNOT_ASSESS'].map((type) => (

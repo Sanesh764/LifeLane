@@ -2,7 +2,7 @@ import React from 'react';
 
 export function Card({
   children,
-  variant = 'ivory', // 'ivory', 'graphite', 'elevated', 'border-only'
+  variant = 'surface', // 'surface', 'ivory', 'elevated', 'border-only'
   title = null,
   subtitle = null,
   headerAction = null,
