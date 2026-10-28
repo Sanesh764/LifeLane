@@ -1,23 +1,151 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Polyline,
+  Circle,
+  useMap,
+} from 'react-leaflet';
 import { useSimulation } from '../../context/useSimulation.js';
-import { AmbulanceIcon, AlertTriangleIcon, CheckCircleIcon, OctagonAlertIcon, HelpCircleIcon } from '../common/Icons.jsx';
 import { Badge } from '../common/Badge.jsx';
+import {
+  PATNA_MAP_CENTER,
+  DEFAULT_MAP_ZOOM,
+  PATNA_LOCATIONS,
+  getCoordinatesForRoad,
+  PRIMARY_ROUTE_COORDINATES,
+  ALTERNATIVE_ROUTE_COORDINATES,
+} from '../../services/mapLocations.js';
+
+// Fix Leaflet default marker asset paths in Vite if standard markers are ever initialized
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: null,
+  iconUrl: null,
+  shadowUrl: null,
+});
 
 /**
- * SimulationMap: Geographic Route & Incident Management Map
- *
- * Grounded in Patna, Bihar corridor geography:
- * - Ganga Riverfront Expressway (JP Ganga Path / Marine Drive)
- * - Atal Path 6-Lane Elevated Express Corridor
- * - Central Arterial Corridor (Bailey Road / Fraser Road / Ashok Rajpath)
- * - PMCH Emergency Trauma Center Base
- *
- * Features:
- * - Interactive Zoom & Recenter controls (+, -, reset)
- * - Selectable Incident & Obstruction Markers
- * - 500m Targeted Proximity Alert Envelope
- * - Clean anti-collision waypoint labels
- * - Authentic attribution banner
+ * Custom Leaflet divIcons matching AmbuRoute's Signal & Motion visual system
+ */
+const createAmbulanceIcon = (callSign, vehicleNumber) =>
+  L.divIcon({
+    className: 'leaflet-amb-icon-wrap',
+    html: `
+      <div class="custom-amb-beacon">
+        <div class="amb-beacon-pulse"></div>
+        <div class="amb-beacon-body">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 10h4" />
+            <path d="M12 8v4" />
+            <rect width="16" height="12" x="2" y="6" rx="2" />
+            <circle cx="7" cy="18" r="2" />
+            <circle cx="17" cy="18" r="2" />
+          </svg>
+        </div>
+        <div class="amb-beacon-label">${vehicleNumber || callSign || 'AMB 108'}</div>
+      </div>
+    `,
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
+    popupAnchor: [0, -22],
+  });
+
+const createHospitalIcon = (shortName) =>
+  L.divIcon({
+    className: 'leaflet-hospital-icon-wrap',
+    html: `
+      <div class="custom-hospital-marker">
+        <div class="hospital-marker-pin">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </div>
+        <div class="hospital-marker-tag">${shortName || 'TRAUMA BASE'}</div>
+      </div>
+    `,
+    iconSize: [42, 42],
+    iconAnchor: [21, 38],
+    popupAnchor: [0, -38],
+  });
+
+const createIncidentIcon = (reportType, isSelected) => {
+  let bgColor = '#EF4444';
+  let symbol = '!';
+  let label = 'BLOCKED';
+
+  if (reportType === 'TRAFFIC_HIGH') {
+    bgColor = '#F59E0B';
+    symbol = '▲';
+    label = 'CONGESTED';
+  } else if (reportType === 'CLEAR') {
+    bgColor = '#10B981';
+    symbol = '✓';
+    label = 'CLEAR';
+  } else if (reportType === 'CANNOT_ASSESS') {
+    bgColor = '#64748B';
+    symbol = '?';
+    label = 'UNKNOWN';
+  }
+
+  return L.divIcon({
+    className: 'leaflet-incident-icon-wrap',
+    html: `
+      <div class="custom-incident-marker ${isSelected ? 'is-selected' : ''}" style="background-color: ${bgColor};" title="${label}">
+        <span class="incident-symbol">${symbol}</span>
+      </div>
+    `,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+    popupAnchor: [0, -13],
+  });
+};
+
+const createUserLocationIcon = () =>
+  L.divIcon({
+    className: 'leaflet-user-icon-wrap',
+    html: `
+      <div class="custom-user-marker">
+        <div class="user-pulse-dot"></div>
+        <div class="user-location-tag">YOU ARE HERE</div>
+      </div>
+    `,
+    iconSize: [92, 26],
+    iconAnchor: [46, 13],
+    popupAnchor: [0, -13],
+  });
+
+const createWaypointIcon = (label) =>
+  L.divIcon({
+    className: 'leaflet-wp-icon-wrap',
+    html: `<div class="custom-waypoint-dot" title="${label}"></div>`,
+    iconSize: [12, 12],
+    iconAnchor: [6, 6],
+  });
+
+/**
+ * Internal Map Controller for Programmatic Pan, Zoom, and Recenter
+ */
+function MapController({ center, zoom, shouldRecenter, onRecentered }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (shouldRecenter && center) {
+      map.setView(center, zoom || 14, { animate: true });
+      if (onRecentered) onRecentered();
+    }
+  }, [center, zoom, shouldRecenter, map, onRecentered]);
+
+  return null;
+}
+
+/**
+ * Main SimulationMap with Real Leaflet & OpenStreetMap Tiles
  */
 export function SimulationMap({ className = '', onSelectIncident }) {
   const {
@@ -30,156 +158,70 @@ export function SimulationMap({ className = '', onSelectIncident }) {
     trafficReports,
     selectedIncident,
     setSelectedIncident,
-    mapZoom,
-    zoomIn,
-    zoomOut,
-    resetZoom,
+    selectedVehicle,
+    selectedDestination,
   } = useSimulation();
 
   const isTripActive = tripStatus === 'ACTIVE';
 
-  // Grounded Patna network nodes
-  const waypoints = [
-    {
-      id: 'Bailey Road / Jawaharlal Nehru Marg',
-      x: 110,
-      y: 280,
-      label: 'Bailey Road',
-      sublabel: 'J.N. Marg Corridor',
-      labelOffset: { x: 0, y: 34 },
-    },
-    {
-      id: 'Dak Bungalow — Fraser Road Crossing',
-      x: 300,
-      y: 280,
-      label: 'Dak Bungalow Crossing',
-      sublabel: 'Fraser Road Intersection',
-      labelOffset: { x: 0, y: 34 },
-    },
-    {
-      id: 'Gandhi Maidan South Corridor',
-      x: 490,
-      y: 280,
-      label: 'Gandhi Maidan',
-      sublabel: 'South Transit Ring',
-      labelOffset: { x: 0, y: 34 },
-    },
-    {
-      id: 'Ashok Rajpath East',
-      x: 650,
-      y: 280,
-      label: 'Ashok Rajpath',
-      sublabel: 'East Corridor',
-      labelOffset: { x: 0, y: 34 },
-    },
-    {
-      id: 'PMCH Emergency Trauma Gate',
-      x: 810,
-      y: 280,
-      label: 'PMCH Emergency Gate',
-      sublabel: 'Trauma Center Base',
-      isDestination: true,
-      labelOffset: { x: -10, y: 36 },
-    },
-    // Bypass nodes (North Riverfront Network)
-    {
-      id: 'Boring Road Turnoff',
-      x: 190,
-      y: 280,
-      label: 'Boring Rd Turnoff',
-      sublabel: 'Atal Path Junction',
-      labelOffset: { x: 0, y: -24 },
-    },
-    {
-      id: 'Atal Path Express Corridor',
-      x: 280,
-      y: 110,
-      label: 'Atal Path Expressway',
-      sublabel: '6-Lane Elevated Corridor',
-      labelOffset: { x: 0, y: -24 },
-    },
-    {
-      id: 'JP Ganga Path (Marine Drive)',
-      x: 550,
-      y: 110,
-      label: 'JP Ganga Path',
-      sublabel: 'Riverfront Marine Drive',
-      labelOffset: { x: 0, y: -24 },
-    },
-    {
-      id: 'PMCH Dedicated Ganga Path Ramp',
-      x: 780,
-      y: 175,
-      label: 'Ganga Path PMCH Ramp',
-      sublabel: 'Direct Trauma Access',
-      labelOffset: { x: 0, y: -24 },
-    },
-  ];
+  // Tile status state (handles offline / sandbox tile availability gracefully)
+  const [tileError, setTileError] = useState(false);
+  const [shouldRecenter, setShouldRecenter] = useState(false);
 
-  // Active ambulance segment waypoint
+  // Active ambulance segment coordinate
   const currentSeg = currentRoute.segments[currentSegmentIdx] || currentRoute.segments[0];
-  const activeNode = waypoints.find((w) => w.id === currentSeg.roadName) || waypoints[0];
+  const ambulanceCoordinates = useMemo(() => {
+    return getCoordinatesForRoad(currentSeg.roadName);
+  }, [currentSeg.roadName]);
 
-  // Handle clicking an incident marker
-  const handleMarkerClick = (report) => {
-    if (report) {
+  // Destination coordinates
+  const destinationCoordinates = useMemo(() => {
+    return getCoordinatesForRoad(selectedDestination.shortName || selectedDestination.name);
+  }, [selectedDestination]);
+
+  // User simulated road coordinates
+  const userCoordinates = useMemo(() => {
+    return getCoordinatesForRoad(userCurrentRoad);
+  }, [userCurrentRoad]);
+
+  // Recenter handler
+  const handleRecenter = useCallback(() => {
+    setShouldRecenter(true);
+  }, []);
+
+  // Incident selection handler
+  const handleMarkerIncidentClick = useCallback(
+    (report) => {
       setSelectedIncident(report);
       if (onSelectIncident) onSelectIncident(report);
-    }
-  };
-
-  // Base viewBox: 880x420; zoom transforms center around (440, 210)
-  const viewBoxWidth = 880 / mapZoom;
-  const viewBoxHeight = 420 / mapZoom;
-  const viewBoxX = (880 - viewBoxWidth) / 2;
-  const viewBoxY = (420 - viewBoxHeight) / 2;
+    },
+    [setSelectedIncident, onSelectIncident]
+  );
 
   return (
     <div className={`simulation-map-container ${className}`}>
-      {/* Operations Map Control Header */}
+      {/* Map Header & Controls Ribbon */}
       <div className="simulation-map-header">
         <div className="simulation-map-title-group">
           <div className="simulation-map-dot-pulse" />
           <div>
-            <div className="simulation-map-title">PATNA EMERGENCY DISPATCH MAP</div>
+            <div className="simulation-map-title">PATNA REAL GEOGRAPHIC CORRIDOR MAP</div>
             <div className="simulation-map-subtitle">
-              DEMO SIMULATION · 500M TARGETING BUFFER · SELECTABLE INCIDENTS
+              LEAFLET · OPENSTREETMAP TILES · 500M PROXIMITY ENVELOPE
             </div>
           </div>
         </div>
 
-        {/* Header Actions: Zoom, Step Checkpoint, Status */}
         <div className="simulation-map-controls">
-          {/* Zoom Buttons */}
-          <div className="map-zoom-group">
-            <button
-              type="button"
-              className="map-tool-btn"
-              onClick={zoomIn}
-              title="Zoom In"
-              aria-label="Zoom In"
-            >
-              +
-            </button>
-            <button
-              type="button"
-              className="map-tool-btn"
-              onClick={zoomOut}
-              title="Zoom Out"
-              aria-label="Zoom Out"
-            >
-              &minus;
-            </button>
-            <button
-              type="button"
-              className="map-tool-btn map-tool-btn--reset"
-              onClick={resetZoom}
-              title="Reset Map View"
-              aria-label="Reset Map View"
-            >
-              Recenter
-            </button>
-          </div>
+          {/* Recenter Action Button */}
+          <button
+            type="button"
+            className="map-recenter-btn"
+            onClick={handleRecenter}
+            title="Recenter map on active ambulance position"
+          >
+            Recenter on Ambulance
+          </button>
 
           <Badge variant={isTripActive ? 'critical' : 'neutral'} size="sm">
             {isTripActive
@@ -200,249 +242,198 @@ export function SimulationMap({ className = '', onSelectIncident }) {
         </div>
       </div>
 
-      {/* SVG Map Canvas */}
-      <div className="simulation-map-canvas-wrapper">
-        <svg
-          viewBox={`${viewBoxX} ${viewBoxY} ${viewBoxWidth} ${viewBoxHeight}`}
-          className="simulation-map-svg"
-          preserveAspectRatio="xMidYMid meet"
-          role="img"
-          aria-label="Interactive Patna Emergency Transit Map"
+      {/* Offline / Tile Notice if network blocks tiles */}
+      {tileError && (
+        <div className="map-tile-notice" role="status">
+          <span>* OpenStreetMap tiles require internet access. Basemap tiles are currently offline; corridor geometry, ambulance beacon, and incident markers remain fully active.</span>
+        </div>
+      )}
+
+      {/* Leaflet MapContainer */}
+      <div className="simulation-map-leaflet-wrapper">
+        <MapContainer
+          center={PATNA_MAP_CENTER}
+          zoom={DEFAULT_MAP_ZOOM}
+          scrollWheelZoom={true}
+          className="leaflet-map-root"
+          attributionControl={true}
         >
-          <defs>
-            {/* Grid Pattern */}
-            <pattern id="opGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255, 255, 255, 0.03)" strokeWidth="1" />
-            </pattern>
-
-            {/* Riverfront Gradient */}
-            <linearGradient id="gangaRiverGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#0B1A28" stopOpacity="0.8" />
-              <stop offset="50%" stopColor="#0E2338" stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#0B1A28" stopOpacity="0.8" />
-            </linearGradient>
-
-            {/* 500m Alert Buffer Radial Gradient */}
-            <radialGradient id="alertRadiusGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#EF4444" stopOpacity="0.32" />
-              <stop offset="60%" stopColor="#EF4444" stopOpacity="0.12" />
-              <stop offset="100%" stopColor="#EF4444" stopOpacity="0" />
-            </radialGradient>
-          </defs>
-
-          {/* Deep Navy/Graphite Base Map Surface */}
-          <rect width="880" height="420" fill="#0A0C10" />
-          <rect width="880" height="420" fill="url(#opGrid)" />
-
-          {/* Ganga Riverfront Geographical Band (North Patna) */}
-          <path
-            d="M 0 50 Q 250 30, 500 45 T 880 35 L 880 130 Q 600 145, 300 135 L 0 140 Z"
-            fill="url(#gangaRiverGrad)"
-            opacity="0.65"
-          />
-          <text
-            x="440"
-            y="65"
-            textAnchor="middle"
-            fill="#2E4C6D"
-            fontSize="11"
-            fontFamily="var(--font-technical)"
-            letterSpacing="0.2em"
-            fontWeight="600"
-          >
-            GANGA RIVERFRONT CORRIDOR (NORTH PATNA)
-          </text>
-
-          {/* Alternative Detour: Atal Path -> JP Ganga Path Expressway (High Capacity Bypass) */}
-          <path
-            d="M 110 280 L 190 280 Q 220 280 250 200 L 280 110 L 550 110 Q 710 110 780 175 L 810 280"
-            fill="none"
-            stroke={activeRecommendation ? '#10B981' : 'rgba(255, 255, 255, 0.15)'}
-            strokeWidth={activeRecommendation ? '4' : '2'}
-            strokeDasharray={activeRecommendation ? '8 4' : '4 4'}
-            strokeLinecap="round"
+          {/* OpenStreetMap Tile Layer */}
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'
+            maxZoom={19}
+            eventHandlers={{
+              tileerror: () => setTileError(true),
+            }}
           />
 
-          {/* Primary Arterial Route: Bailey Road -> Dak Bungalow -> Gandhi Maidan -> Ashok Rajpath -> PMCH */}
-          <path
-            d="M 110 280 L 300 280 L 490 280 L 650 280 L 810 280"
-            fill="none"
-            stroke={currentRoute.id === 'route-primary' ? '#F59E0B' : 'rgba(255, 255, 255, 0.2)'}
-            strokeWidth="5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+          {/* Programmatic View Controller */}
+          <MapController
+            center={ambulanceCoordinates}
+            zoom={14}
+            shouldRecenter={shouldRecenter}
+            onRecentered={() => setShouldRecenter(false)}
           />
 
-          {/* 500-Meter Proximity Alert Envelope around ambulance */}
+          {/* Primary Route Polyline (Illustrative prototype path between Patna corridor nodes) */}
+          <Polyline
+            positions={PRIMARY_ROUTE_COORDINATES}
+            pathOptions={{
+              color: currentRoute.id === 'route-primary' ? '#F59E0B' : 'rgba(148, 163, 184, 0.4)',
+              weight: 5,
+              opacity: 0.9,
+              lineCap: 'round',
+              lineJoin: 'round',
+            }}
+          />
+
+          {/* Alternative Detour Polyline (via Atal Path & JP Ganga Path Expressway) */}
+          <Polyline
+            positions={ALTERNATIVE_ROUTE_COORDINATES}
+            pathOptions={{
+              color: activeRecommendation ? '#10B981' : 'rgba(148, 163, 184, 0.3)',
+              weight: activeRecommendation ? 4 : 2,
+              dashArray: activeRecommendation ? '8, 6' : '4, 4',
+              opacity: 0.85,
+            }}
+          />
+
+          {/* 500-Meter Proximity Alert Envelope around ambulance when active */}
           {isTripActive && (
-            <g transform={`translate(${activeNode.x}, ${activeNode.y})`}>
-              <circle r="68" fill="url(#alertRadiusGlow)" />
-              <circle
-                r="68"
-                fill="none"
-                stroke="#EF4444"
-                strokeWidth="1.5"
-                strokeDasharray="4 3"
-                opacity="0.85"
-              />
-              <rect x="-65" y="-84" width="130" height="18" rx="3" fill="#0C0E12" stroke="#EF4444" strokeWidth="1" />
-              <text
-                x="0"
-                y="-71"
-                textAnchor="middle"
-                fill="#EF4444"
-                fontSize="9"
-                fontFamily="var(--font-technical)"
-                fontWeight="700"
-                letterSpacing="0.04em"
-              >
-                500M ALERT ENVELOPE
-              </text>
-            </g>
+            <Circle
+              center={ambulanceCoordinates}
+              radius={500}
+              pathOptions={{
+                color: '#EF4444',
+                fillColor: '#EF4444',
+                fillOpacity: 0.16,
+                weight: 1.8,
+                dashArray: '5, 5',
+              }}
+            >
+              <Popup className="custom-leaflet-popup">
+                <div className="popup-inner">
+                  <div className="popup-header-tag text-red">500M PROXIMITY BUFFER</div>
+                  <div className="popup-title">Active Alert Targeting Envelope</div>
+                  <div className="popup-body">
+                    Road users located on upcoming road segments within this 500m zone receive yielding notices.
+                  </div>
+                </div>
+              </Popup>
+            </Circle>
           )}
 
-          {/* Waypoints & Labels with Clean Anti-Collision Styling */}
-          {waypoints.map((wp) => {
-            const isUserHere = wp.id.toLowerCase() === userCurrentRoad.toLowerCase();
-            const relevantReports = trafficReports.filter((r) => r.roadSegment === wp.id);
-            const blockedReport = relevantReports.find((r) => r.reportType === 'ROAD_BLOCKED');
-            const highTrafficReport = relevantReports.find((r) => r.reportType === 'TRAFFIC_HIGH');
-            const isIncidentSelected = selectedIncident && selectedIncident.roadSegment === wp.id;
-
-            const isBlocked = Boolean(blockedReport);
-            const isHeavy = Boolean(highTrafficReport);
+          {/* Key Patna Corridor Waypoints */}
+          {Object.values(PATNA_LOCATIONS).map((loc) => {
+            if (loc.category === 'hospital') return null; // rendered separately
 
             return (
-              <g key={wp.id} transform={`translate(${wp.x}, ${wp.y})`}>
-                {/* Node Marker Ring */}
-                <circle
-                  r={wp.isDestination ? '9' : '6'}
-                  fill={
-                    wp.isDestination
-                      ? '#EF4444'
-                      : isBlocked
-                      ? '#EF4444'
-                      : isHeavy
-                      ? '#F59E0B'
-                      : '#1C2230'
-                  }
-                  stroke={wp.isDestination ? '#FFFFFF' : '#94A3B8'}
-                  strokeWidth={wp.isDestination ? '2.5' : '1.5'}
-                />
-
-                {/* Destination Cross Badge */}
-                {wp.isDestination && (
-                  <g transform="translate(0, -28)">
-                    <rect x="-44" y="-14" width="88" height="20" rx="3" fill="#EF4444" stroke="#FFFFFF" strokeWidth="1" />
-                    <text x="0" y="0" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="700">
-                      TRAUMA BASE
-                    </text>
-                  </g>
-                )}
-
-                {/* Non-overlapping Staggered Label Card */}
-                <g transform={`translate(${wp.labelOffset.x}, ${wp.labelOffset.y})`}>
-                  <rect
-                    x="-68"
-                    y="-12"
-                    width="136"
-                    height="24"
-                    rx="4"
-                    fill="#10141D"
-                    stroke={isIncidentSelected ? '#F59E0B' : '#1E2738'}
-                    strokeWidth={isIncidentSelected ? '1.5' : '1'}
-                    opacity="0.95"
-                  />
-                  <text
-                    x="0"
-                    y="0"
-                    textAnchor="middle"
-                    fill="#F1F5F9"
-                    fontSize="10"
-                    fontFamily="var(--font-interface)"
-                    fontWeight="600"
-                  >
-                    {wp.label}
-                  </text>
-                  <text
-                    x="0"
-                    y="9"
-                    textAnchor="middle"
-                    fill="#64748B"
-                    fontSize="8"
-                    fontFamily="var(--font-technical)"
-                  >
-                    {wp.sublabel}
-                  </text>
-                </g>
-
-                {/* User Simulated Location Pin */}
-                {isUserHere && (
-                  <g transform="translate(0, -28)">
-                    <rect x="-46" y="-14" width="92" height="18" rx="3" fill="#F59E0B" />
-                    <text
-                      x="0"
-                      y="-2"
-                      textAnchor="middle"
-                      fill="#0C0E12"
-                      fontSize="9"
-                      fontFamily="var(--font-technical)"
-                      fontWeight="800"
-                      letterSpacing="0.04em"
-                    >
-                      YOU ARE HERE
-                    </text>
-                  </g>
-                )}
-
-                {/* Selectable Traffic Obstruction Warning Pill */}
-                {relevantReports.length > 0 && (
-                  <g
-                    transform="translate(14, -14)"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => handleMarkerClick(relevantReports[0])}
-                    title="Click to inspect community observation"
-                  >
-                    <rect
-                      x="-9"
-                      y="-9"
-                      width="18"
-                      height="18"
-                      rx="3"
-                      fill={isBlocked ? '#EF4444' : isHeavy ? '#F59E0B' : '#10B981'}
-                      stroke={isIncidentSelected ? '#FFFFFF' : 'none'}
-                      strokeWidth={isIncidentSelected ? '2' : '0'}
-                    />
-                    <text x="0" y="4" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="bold">
-                      {isBlocked ? '!' : isHeavy ? '▲' : '✓'}
-                    </text>
-                  </g>
-                )}
-              </g>
+              <Marker
+                key={loc.id}
+                position={loc.coordinates}
+                icon={createWaypointIcon(loc.name)}
+              >
+                <Popup className="custom-leaflet-popup">
+                  <div className="popup-inner">
+                    <div className="popup-header-tag">PATNA CORRIDOR NODE</div>
+                    <div className="popup-title">{loc.name}</div>
+                    <div className="popup-body">{loc.description}</div>
+                    <div className="popup-coords text-muted">
+                      Approx: {loc.coordinates[0].toFixed(4)}° N, {loc.coordinates[1].toFixed(4)}° E
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
             );
           })}
 
-          {/* Active Ambulance Position Beacon */}
+          {/* Destination Hospital Marker */}
+          <Marker
+            position={destinationCoordinates}
+            icon={createHospitalIcon(selectedDestination.shortName || selectedDestination.name)}
+          >
+            <Popup className="custom-leaflet-popup">
+              <div className="popup-inner">
+                <div className="popup-header-tag text-red">EMERGENCY DESTINATION</div>
+                <div className="popup-title">{selectedDestination.name}</div>
+                <div className="popup-body">
+                  Target Trauma Center · Distance: {selectedDestination.distanceKm} km (~{selectedDestination.baseEtaMins} min base travel)
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+
+          {/* Participating Road User Simulated Location Marker */}
+          <Marker position={userCoordinates} icon={createUserLocationIcon()}>
+            <Popup className="custom-leaflet-popup">
+              <div className="popup-inner">
+                <div className="popup-header-tag text-amber">SIMULATED CITIZEN POSITION</div>
+                <div className="popup-title">{userCurrentRoad}</div>
+                <div className="popup-body">
+                  Your device is registered for route-aware corridor alerts in this Patna sector.
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+
+          {/* Traffic Hazard / Community Incident Markers */}
+          {trafficReports.map((report) => {
+            const coords = getCoordinatesForRoad(report.roadSegment);
+            const isSelected = selectedIncident && selectedIncident.id === report.id;
+
+            return (
+              <Marker
+                key={report.id}
+                position={coords}
+                icon={createIncidentIcon(report.reportType, isSelected)}
+                eventHandlers={{
+                  click: () => handleMarkerIncidentClick(report),
+                }}
+              >
+                <Popup className="custom-leaflet-popup">
+                  <div className="popup-inner">
+                    <div className="popup-header-tag">
+                      OBSERVATION: <span className="font-bold">{report.reportType}</span>
+                    </div>
+                    <div className="popup-title">{report.roadSegment}</div>
+                    <div className="popup-body">{report.locationDescription}</div>
+                    <div className="popup-meta-row">
+                      <span>Source: {report.source}</span> · 
+                      <span> {report.verifiedCount} confirmations</span>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
+
+          {/* Active Ambulance Marker */}
           {isTripActive && (
-            <g transform={`translate(${activeNode.x}, ${activeNode.y})`}>
-              <circle r="18" fill="#0C0E12" stroke="#EF4444" strokeWidth="3" />
-              <g transform="translate(-10, -10)">
-                <AmbulanceIcon size={20} className="map-ambulance-icon" />
-              </g>
-            </g>
+            <Marker
+              position={ambulanceCoordinates}
+              icon={createAmbulanceIcon(selectedVehicle.callSign, selectedVehicle.vehicleNumber)}
+              zIndexOffset={1000}
+            >
+              <Popup className="custom-leaflet-popup">
+                <div className="popup-inner">
+                  <div className="popup-header-tag text-red">ACTIVE EMERGENCY VEHICLE</div>
+                  <div className="popup-title">{selectedVehicle.callSign}</div>
+                  <div className="popup-body">
+                    Vehicle: <strong>{selectedVehicle.vehicleNumber}</strong><br />
+                    En Route to: <strong>{selectedDestination.shortName || selectedDestination.name}</strong><br />
+                    Current Corridor: <strong>{currentSeg.roadName}</strong>
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
           )}
-        </svg>
+        </MapContainer>
       </div>
 
-      {/* Selected Incident Drawer / Callout (If an incident is selected) */}
+      {/* Selected Incident Inspector Drawer Bar */}
       {selectedIncident && (
         <div className="simulation-map-incident-bar">
-          <div className="incident-bar-icon">
-            {selectedIncident.reportType === 'ROAD_BLOCKED' && <OctagonAlertIcon size={16} className="text-red" />}
-            {selectedIncident.reportType === 'TRAFFIC_HIGH' && <AlertTriangleIcon size={16} className="text-amber" />}
-            {selectedIncident.reportType === 'CLEAR' && <CheckCircleIcon size={16} className="text-mint" />}
-            {selectedIncident.reportType === 'CANNOT_ASSESS' && <HelpCircleIcon size={16} className="text-muted" />}
-          </div>
           <div className="incident-bar-text">
             <span className="incident-bar-road">[{selectedIncident.roadSegment}]</span>{' '}
             <span className="incident-bar-desc">{selectedIncident.locationDescription}</span>
@@ -467,16 +458,16 @@ export function SimulationMap({ className = '', onSelectIncident }) {
         </div>
       )}
 
-      {/* High-Contrast Operations Legend & GIS Attribution */}
+      {/* Map Legend & Prototype Note */}
       <div className="simulation-map-legend">
         <div className="legend-items-row">
           <div className="legend-item">
             <span className="legend-swatch legend-swatch--primary" />
-            <span>Active Arterial (Bailey & Fraser Rd)</span>
+            <span>Active Corridor (Bailey & Fraser Rd)</span>
           </div>
           <div className="legend-item">
             <span className="legend-swatch legend-swatch--alt" />
-            <span>Expressway Detour (Atal Path & Ganga Path)</span>
+            <span>Bypass Corridor (Atal Path & Ganga Path)</span>
           </div>
           <div className="legend-item">
             <span className="legend-swatch legend-swatch--blocked" />
@@ -493,7 +484,7 @@ export function SimulationMap({ className = '', onSelectIncident }) {
         </div>
 
         <div className="legend-attribution">
-          AmbuRoute Vector GIS Engine · Patna Emergency Transit Network · Illustrative Geometry
+          OpenStreetMap Basemap Tiles · Patna Prototype Transit Network · Illustrative Route Geometry
         </div>
       </div>
     </div>

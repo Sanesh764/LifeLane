@@ -4385,4 +4385,307 @@
   margin: 0;
 }
 
+/* ==========================================================================
+   LEAFLET REAL GEOGRAPHIC MAP & CUSTOM MARKERS (SIGNAL & MOTION SYSTEM)
+   ========================================================================== */
+
+.simulation-map-leaflet-wrapper {
+  position: relative;
+  width: 100%;
+  height: 480px;
+  min-height: 420px;
+  background-color: #0A0C10;
+}
+
+@media (max-width: 768px) {
+  .simulation-map-leaflet-wrapper {
+    height: 380px;
+    min-height: 340px;
+  }
+}
+
+.leaflet-map-root {
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+}
+
+.map-recenter-btn {
+  background: #1E293B;
+  color: #F8FAFC;
+  border: 1px solid #334155;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-technical);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.map-recenter-btn:hover {
+  background: #334155;
+  border-color: var(--color-signal-amber);
+}
+
+.map-tile-notice {
+  padding: 6px 12px;
+  background-color: rgba(245, 158, 11, 0.15);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.4);
+  font-family: var(--font-technical);
+  font-size: 0.72rem;
+  color: var(--color-signal-amber);
+}
+
+/* Custom Ambulance Beacon Marker */
+.leaflet-amb-icon-wrap {
+  background: transparent !important;
+  border: none !important;
+}
+
+.custom-amb-beacon {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.amb-beacon-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-color: rgba(239, 68, 68, 0.35);
+  border: 2px solid #EF4444;
+  animation: pulse-beacon 1.2s infinite ease-out;
+}
+
+@keyframes pulse-beacon {
+  0% { transform: scale(0.85); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+.amb-beacon-body {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #EF4444;
+  border: 2px solid #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  z-index: 2;
+}
+
+.amb-beacon-label {
+  position: absolute;
+  bottom: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #0F172A;
+  color: var(--color-signal-amber);
+  border: 1px solid #334155;
+  font-family: var(--font-technical);
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 2px;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Custom Hospital Marker */
+.leaflet-hospital-icon-wrap {
+  background: transparent !important;
+  border: none !important;
+}
+
+.custom-hospital-marker {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.hospital-marker-pin {
+  width: 30px;
+  height: 30px;
+  background-color: #EF4444;
+  border: 2px solid #FFFFFF;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.hospital-marker-pin svg {
+  transform: rotate(45deg);
+}
+
+.hospital-marker-tag {
+  margin-top: 4px;
+  background-color: #0F172A;
+  color: #FFFFFF;
+  border: 1px solid #EF4444;
+  font-family: var(--font-technical);
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Custom Incident Marker */
+.leaflet-incident-icon-wrap {
+  background: transparent !important;
+  border: none !important;
+}
+
+.custom-incident-marker {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 2px solid #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.custom-incident-marker:hover {
+  transform: scale(1.2);
+}
+
+.custom-incident-marker.is-selected {
+  outline: 3px solid var(--color-signal-amber);
+  outline-offset: 2px;
+}
+
+.incident-symbol {
+  font-size: 11px;
+  font-weight: 800;
+  color: #FFFFFF;
+  line-height: 1;
+}
+
+/* Custom User Location Marker */
+.leaflet-user-icon-wrap {
+  background: transparent !important;
+  border: none !important;
+}
+
+.custom-user-marker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #0F172A;
+  border: 1.5px solid var(--color-signal-amber);
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.user-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-signal-amber);
+  animation: pulse-amber 1s infinite;
+}
+
+.user-location-tag {
+  font-family: var(--font-technical);
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--color-signal-amber);
+  white-space: nowrap;
+}
+
+/* Custom Waypoint Dot Marker */
+.leaflet-wp-icon-wrap {
+  background: transparent !important;
+  border: none !important;
+}
+
+.custom-waypoint-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #0F172A;
+  border: 2px solid #94A3B8;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Custom Leaflet Popups */
+.custom-leaflet-popup .leaflet-popup-content-wrapper {
+  background-color: #0F172A !important;
+  color: #F8FAFC !important;
+  border: 1px solid #334155 !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+  padding: 0 !important;
+}
+
+.custom-leaflet-popup .leaflet-popup-content {
+  margin: 10px 14px !important;
+  line-height: 1.4 !important;
+}
+
+.custom-leaflet-popup .leaflet-popup-tip {
+  background-color: #0F172A !important;
+  border: 1px solid #334155 !important;
+}
+
+.popup-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 180px;
+}
+
+.popup-header-tag {
+  font-family: var(--font-technical);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--color-signal-amber);
+  letter-spacing: 0.04em;
+}
+
+.popup-title {
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.popup-body {
+  font-size: 0.75rem;
+  color: #CBD5E1;
+  line-height: 1.35;
+}
+
+.popup-coords {
+  font-family: var(--font-technical);
+  font-size: 0.65rem;
+}
+
+.popup-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-technical);
+  font-size: 0.68rem;
+  color: #94A3B8;
+  margin-top: 2px;
+}
+
+
 
