@@ -82,6 +82,27 @@ export function TrafficReportPage() {
                   >
                     {selectedIncident.reportType}
                   </Badge>
+                  <Badge
+                    variant={
+                      (selectedIncident.locationStatus || 'LOCATION UNVERIFIED') === 'LOCATION MATCHED'
+                        ? 'clear'
+                        : 'warning'
+                    }
+                    size="sm"
+                  >
+                    {selectedIncident.locationStatus || 'LOCATION UNVERIFIED'}
+                  </Badge>
+                  <Badge
+                    variant={
+                      (selectedIncident.corroborationStatus || (selectedIncident.verifiedCount > 1 ? 'CORROBORATED' : 'UNVERIFIED REPORT')) === 'CORROBORATED'
+                        ? 'warning'
+                        : 'neutral'
+                    }
+                    size="sm"
+                  >
+                    {selectedIncident.corroborationStatus || (selectedIncident.verifiedCount > 1 ? 'CORROBORATED' : 'UNVERIFIED REPORT')}
+                  </Badge>
+                  <Badge variant="neutral" size="sm">DEMO DATA</Badge>
                 </div>
                 <div className="inspector-title-row">
                   <span className="inspector-road-name">{selectedIncident.roadSegment}</span>
@@ -105,15 +126,23 @@ export function TrafficReportPage() {
                   </span>
                 </div>
                 <div className="meta-item">
+                  <span className="meta-label">Location Check:</span>
+                  <span className="meta-val">
+                    {selectedIncident.locationStatus === 'LOCATION MATCHED'
+                      ? 'Matched with corridor geometry'
+                      : 'Unverified device coordinates'}
+                  </span>
+                </div>
+                <div className="meta-item">
                   <span className="meta-label">Independent Reports:</span>
                   <span className="meta-val">{selectedIncident.verifiedCount} confirming observations</span>
                 </div>
                 <div className="meta-item">
                   <span className="meta-label">Routing Impact:</span>
                   <span className="meta-val text-amber">
-                    {selectedIncident.reportType === 'ROAD_BLOCKED'
-                      ? 'Triggers Atal Path bypass evaluation'
-                      : 'Monitored on active corridor'}
+                    {selectedIncident.reportType === 'ROAD_BLOCKED' && (selectedIncident.verifiedCount > 1 || selectedIncident.locationStatus === 'LOCATION MATCHED')
+                      ? 'Atal Path detour candidate (requires driver review)'
+                      : 'Monitored; unverified single report does not alter route'}
                   </span>
                 </div>
               </div>

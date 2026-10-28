@@ -76,14 +76,21 @@ export function RouteComparisonPanel() {
         </Badge>
       </div>
 
-      {/* Cause of recommendation */}
+      {/* Cause & Evidence of recommendation */}
       <div className="decision-cause-box">
         <div className="cause-icon">
           <AlertTriangleIcon size={14} className="text-red" />
         </div>
-        <div className="cause-text">
-          {activeRecommendation.recommendationReason ||
-            'Blockage reported at Dak Bungalow — Fraser Road. Atal Path riverfront expressway bypass available.'}
+        <div className="cause-content">
+          <div className="cause-text">
+            {activeRecommendation.recommendationReason ||
+              'Blockage reported at Dak Bungalow — Fraser Road. Atal Path riverfront expressway bypass available.'}
+          </div>
+          <div className="cause-evidence-row">
+            <span className="evidence-label">SUPPORTING EVIDENCE:</span>
+            <Badge variant="clear" size="xs">LOCATION MATCHED</Badge>
+            <Badge variant="warning" size="xs">CORROBORATED (5 REPORTS)</Badge>
+          </div>
         </div>
       </div>
 

@@ -96,20 +96,35 @@ export function DriverTraffic() {
                 onClick={() => setSelectedIncident(report)}
               >
                 <div className="observation-card-header">
-                  <Badge
-                    variant={
-                      report.reportType === 'ROAD_BLOCKED'
-                        ? 'critical'
-                        : report.reportType === 'TRAFFIC_HIGH'
-                        ? 'warning'
-                        : report.reportType === 'CLEAR'
-                        ? 'clear'
-                        : 'neutral'
-                    }
-                    size="sm"
-                  >
-                    {report.reportType}
-                  </Badge>
+                  <div className="observation-badge-strip">
+                    <Badge
+                      variant={
+                        report.reportType === 'ROAD_BLOCKED'
+                          ? 'critical'
+                          : report.reportType === 'TRAFFIC_HIGH'
+                          ? 'warning'
+                          : report.reportType === 'CLEAR'
+                          ? 'clear'
+                          : 'neutral'
+                      }
+                      size="sm"
+                    >
+                      {report.reportType}
+                    </Badge>
+                    <Badge
+                      variant={(report.locationStatus || 'LOCATION UNVERIFIED') === 'LOCATION MATCHED' ? 'clear' : 'warning'}
+                      size="xs"
+                    >
+                      {report.locationStatus || 'LOCATION UNVERIFIED'}
+                    </Badge>
+                    <Badge
+                      variant={(report.corroborationStatus || (report.verifiedCount > 1 ? 'CORROBORATED' : 'UNVERIFIED REPORT')) === 'CORROBORATED' ? 'warning' : 'neutral'}
+                      size="xs"
+                    >
+                      {report.corroborationStatus || (report.verifiedCount > 1 ? 'CORROBORATED' : 'UNVERIFIED REPORT')}
+                    </Badge>
+                    <Badge variant="neutral" size="xs">DEMO DATA</Badge>
+                  </div>
                   <span className="observation-source text-muted">
                     {report.source} · {report.freshness === 'JUST_NOW' ? 'Just Now' : report.freshness === 'FRESH' ? '<10m ago' : 'Stale (>20m)'}
                   </span>
@@ -146,18 +161,43 @@ export function DriverTraffic() {
             <Card variant="surface" className="selected-hazard-inspector">
               <div className="inspector-top-tag">
                 <span className="tag-label">SELECTED OBSERVATION DETAILS</span>
-                <Badge
-                  variant={
-                    selectedIncident.reportType === 'ROAD_BLOCKED'
-                      ? 'critical'
-                      : selectedIncident.reportType === 'TRAFFIC_HIGH'
-                      ? 'warning'
-                      : 'clear'
-                  }
-                  size="sm"
-                >
-                  {selectedIncident.reportType}
-                </Badge>
+                <div className="inspector-tag-badges">
+                  <Badge
+                    variant={
+                      selectedIncident.reportType === 'ROAD_BLOCKED'
+                        ? 'critical'
+                        : selectedIncident.reportType === 'TRAFFIC_HIGH'
+                        ? 'warning'
+                        : selectedIncident.reportType === 'CLEAR'
+                        ? 'clear'
+                        : 'neutral'
+                    }
+                    size="sm"
+                  >
+                    {selectedIncident.reportType}
+                  </Badge>
+                  <Badge
+                    variant={
+                      (selectedIncident.locationStatus || 'LOCATION UNVERIFIED') === 'LOCATION MATCHED'
+                        ? 'clear'
+                        : 'warning'
+                    }
+                    size="sm"
+                  >
+                    {selectedIncident.locationStatus || 'LOCATION UNVERIFIED'}
+                  </Badge>
+                  <Badge
+                    variant={
+                      (selectedIncident.corroborationStatus || (selectedIncident.verifiedCount > 1 ? 'CORROBORATED' : 'UNVERIFIED REPORT')) === 'CORROBORATED'
+                        ? 'warning'
+                        : 'neutral'
+                    }
+                    size="sm"
+                  >
+                    {selectedIncident.corroborationStatus || (selectedIncident.verifiedCount > 1 ? 'CORROBORATED' : 'UNVERIFIED REPORT')}
+                  </Badge>
+                  <Badge variant="neutral" size="sm">DEMO DATA</Badge>
+                </div>
               </div>
 
               <h2 className="inspector-road-heading">{selectedIncident.roadSegment}</h2>
@@ -179,15 +219,23 @@ export function DriverTraffic() {
                   </span>
                 </div>
                 <div className="inspector-metric-row">
+                  <span className="metric-label">Location Verification:</span>
+                  <span className="metric-value">
+                    {selectedIncident.locationStatus === 'LOCATION MATCHED'
+                      ? 'Matched with corridor geometry'
+                      : 'Unverified device coordinates'}
+                  </span>
+                </div>
+                <div className="inspector-metric-row">
                   <span className="metric-label">Independent Agreement:</span>
                   <span className="metric-value">{selectedIncident.verifiedCount} observations</span>
                 </div>
                 <div className="inspector-metric-row">
                   <span className="metric-label">Routing Impact:</span>
                   <span className="metric-value text-amber">
-                    {selectedIncident.reportType === 'ROAD_BLOCKED'
-                      ? 'Atal Path Detour Evaluated'
-                      : 'Monitored on active corridor'}
+                    {selectedIncident.reportType === 'ROAD_BLOCKED' && (selectedIncident.verifiedCount > 1 || selectedIncident.locationStatus === 'LOCATION MATCHED')
+                      ? 'Atal Path Detour Evaluated (driver confirmation required)'
+                      : 'Monitored; unverified single report does not alter route'}
                   </span>
                 </div>
               </div>

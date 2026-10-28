@@ -162,6 +162,10 @@ export const INITIAL_TRAFFIC_REPORTS = [
     verifiedCount: 5,
     source: 'Traffic Police Observation',
     status: 'ACTIVE',
+    isDemo: true,
+    locationStatus: 'LOCATION MATCHED',
+    gpsAccuracy: 12,
+    corroborationStatus: 'CORROBORATED',
   },
   {
     id: 'rep-2',
@@ -173,6 +177,10 @@ export const INITIAL_TRAFFIC_REPORTS = [
     verifiedCount: 4,
     source: 'City Bus Driver',
     status: 'ACTIVE',
+    isDemo: true,
+    locationStatus: 'LOCATION MATCHED',
+    gpsAccuracy: 18,
+    corroborationStatus: 'CORROBORATED',
   },
   {
     id: 'rep-3',
@@ -184,6 +192,10 @@ export const INITIAL_TRAFFIC_REPORTS = [
     verifiedCount: 3,
     source: 'Commuter on Two-Wheeler',
     status: 'ACTIVE',
+    isDemo: true,
+    locationStatus: 'LOCATION MATCHED',
+    gpsAccuracy: 24,
+    corroborationStatus: 'CORROBORATED',
   },
   {
     id: 'rep-4',
@@ -195,6 +207,10 @@ export const INITIAL_TRAFFIC_REPORTS = [
     verifiedCount: 2,
     source: 'Local Auto Driver',
     status: 'ACTIVE',
+    isDemo: true,
+    locationStatus: 'LOCATION MATCHED',
+    gpsAccuracy: 35,
+    corroborationStatus: 'CORROBORATED',
   },
   {
     id: 'rep-5',
@@ -206,6 +222,10 @@ export const INITIAL_TRAFFIC_REPORTS = [
     verifiedCount: 1,
     source: 'Pedestrian',
     status: 'STALE',
+    isDemo: true,
+    locationStatus: 'LOCATION UNVERIFIED',
+    gpsAccuracy: null,
+    corroborationStatus: 'UNVERIFIED REPORT',
   },
   {
     id: 'rep-6',
@@ -217,6 +237,10 @@ export const INITIAL_TRAFFIC_REPORTS = [
     verifiedCount: 2,
     source: 'Local Resident',
     status: 'ACTIVE',
+    isDemo: true,
+    locationStatus: 'LOCATION UNVERIFIED',
+    gpsAccuracy: null,
+    corroborationStatus: 'CORROBORATED',
   },
 ];
 

@@ -164,7 +164,7 @@ export function DriverHome() {
         {/* Left Column: Recent Trips Activity */}
         <section className="dashboard-section" aria-label="Recent Missions">
           <div className="dashboard-section-header">
-            <div className="section-title-wrap">
+            <div className="dashboard-section-title-wrap">
               <HistoryIcon size={18} className="text-primary" />
               <h2 className="dashboard-section-title">Recent Vehicle Missions</h2>
             </div>
@@ -208,7 +208,7 @@ export function DriverHome() {
         {/* Right Column: Recent Traffic Alerts & Shortcuts */}
         <section className="dashboard-section" aria-label="Corridor Intelligence & Shortcuts">
           <div className="dashboard-section-header">
-            <div className="section-title-wrap">
+            <div className="dashboard-section-title-wrap">
               <FileTextIcon size={18} className="text-amber" />
               <h2 className="dashboard-section-title">Corridor Traffic Observations</h2>
             </div>

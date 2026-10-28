@@ -331,7 +331,9 @@ export function OverviewPage() {
          --------------------------------------------------------------------- */}
       <section id="how-it-works-section" className="home-how-it-works-section">
         <div className="section-title-wrap">
-          <Badge variant="warning" size="sm">OPERATIONAL WORKFLOW</Badge>
+          <div className="section-badge-row">
+            <Badge variant="warning" size="sm">OPERATIONAL WORKFLOW</Badge>
+          </div>
           <h2 className="section-heading">How AmbuRoute Works</h2>
           <p className="section-subheading">
             A cooperative end-to-end flow designed for clarity, safety, and driver control.

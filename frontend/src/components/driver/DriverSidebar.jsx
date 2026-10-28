@@ -23,9 +23,12 @@ export function DriverSidebar() {
     logout,
     tripHistory,
     trafficReports,
+    isFocusedMissionMode,
+    toggleFocusedMissionMode,
   } = useSimulation();
 
   const isTripActive = tripStatus === 'ACTIVE';
+  const isCollapsed = isTripActive && isFocusedMissionMode && driverSubTab === 'active';
 
   const navItems = [
     {
@@ -82,7 +85,10 @@ export function DriverSidebar() {
   };
 
   return (
-    <aside className="driver-portal-sidebar" aria-label="Driver Portal Navigation">
+    <aside
+      className={`driver-portal-sidebar ${isCollapsed ? 'is-collapsed-rail' : ''}`}
+      aria-label="Driver Portal Navigation"
+    >
       {/* Unit Status & Operational Ribbon */}
       <div className="driver-sidebar-header">
         <div className="sidebar-unit-title-row">
@@ -118,6 +124,7 @@ export function DriverSidebar() {
                   className={`driver-nav-link ${isActive ? 'is-active' : ''}`}
                   onClick={() => handleNav(item.id)}
                   aria-current={isActive ? 'page' : undefined}
+                  title={item.label}
                 >
                   <span className="driver-nav-icon-wrap">
                     <Icon size={18} />
@@ -143,6 +150,17 @@ export function DriverSidebar() {
 
       {/* Driver Identity & Session Logout Footer */}
       <div className="driver-sidebar-footer">
+        {isTripActive && (
+          <button
+            type="button"
+            className="sidebar-collapse-toggle-btn"
+            onClick={toggleFocusedMissionMode}
+            title={isCollapsed ? 'Expand sidebar menu' : 'Collapse sidebar into compact rail'}
+          >
+            <span>{isCollapsed ? '⇥' : '⇤ Minimize Sidebar'}</span>
+          </button>
+        )}
+
         <div className="driver-profile-block">
           <div className="driver-avatar-circle">
             <ShieldCheckIcon size={16} className="text-mint" />

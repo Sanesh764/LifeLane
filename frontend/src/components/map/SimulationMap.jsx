@@ -120,6 +120,26 @@ const createUserLocationIcon = () =>
     popupAnchor: [0, -13],
   });
 
+const createGpsUserLocationIcon = (accuracy) =>
+  L.divIcon({
+    className: 'leaflet-gps-icon-wrap',
+    html: `
+      <div class="custom-gps-marker">
+        <div class="gps-pulse-ring"></div>
+        <div class="gps-dot">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v3m0 14v3M2 12h3m14 0h3" />
+          </svg>
+        </div>
+        <div class="gps-tag">GPS ±${accuracy || 15}m</div>
+      </div>
+    `,
+    iconSize: [96, 28],
+    iconAnchor: [48, 14],
+    popupAnchor: [0, -14],
+  });
+
 const createWaypointIcon = (label) =>
   L.divIcon({
     className: 'leaflet-wp-icon-wrap',
@@ -172,6 +192,7 @@ export function SimulationMap({ className = '', onSelectIncident }) {
     tripStatus,
     activeRecommendation,
     userCurrentRoad,
+    userGpsLocation,
     advanceSegment,
     trafficReports,
     selectedIncident,
@@ -382,18 +403,55 @@ export function SimulationMap({ className = '', onSelectIncident }) {
             </Popup>
           </Marker>
 
-          {/* Participating Road User Simulated Location Marker */}
-          <Marker position={userCoordinates} icon={createUserLocationIcon()}>
-            <Popup className="custom-leaflet-popup">
-              <div className="popup-inner">
-                <div className="popup-header-tag text-amber">SIMULATED CITIZEN POSITION</div>
-                <div className="popup-title">{userCurrentRoad}</div>
-                <div className="popup-body">
-                  Your device is registered for route-aware corridor alerts in this Patna sector.
+          {/* Detected Device GPS Location Marker & Accuracy Circle (When captured) */}
+          {userGpsLocation?.status === 'SUCCESS' && userGpsLocation.lat && userGpsLocation.lng ? (
+            <>
+              <Circle
+                center={[userGpsLocation.lat, userGpsLocation.lng]}
+                radius={userGpsLocation.accuracy || 25}
+                pathOptions={{
+                  color: '#0F766E',
+                  fillColor: '#0F766E',
+                  fillOpacity: 0.12,
+                  weight: 1.5,
+                  dashArray: '4, 4',
+                }}
+              />
+              <Marker
+                position={[userGpsLocation.lat, userGpsLocation.lng]}
+                icon={createGpsUserLocationIcon(userGpsLocation.accuracy)}
+              >
+                <Popup className="custom-leaflet-popup">
+                  <div className="popup-inner">
+                    <div className="popup-header-tag text-teal">DETECTED DEVICE GPS</div>
+                    <div className="popup-title">
+                      {userGpsLocation.lat.toFixed(5)}° N, {userGpsLocation.lng.toFixed(5)}° E
+                    </div>
+                    <div className="popup-body">
+                      Accuracy: ±{userGpsLocation.accuracy}m<br />
+                      Captured at {new Date(userGpsLocation.timestamp).toLocaleTimeString()}<br />
+                      <span className="text-muted" style={{ fontSize: '0.74rem' }}>
+                        Device Geolocation from browser API. Used for report proximity review.
+                      </span>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            </>
+          ) : (
+            /* Participating Road User Simulated Location Marker (Fallback) */
+            <Marker position={userCoordinates} icon={createUserLocationIcon()}>
+              <Popup className="custom-leaflet-popup">
+                <div className="popup-inner">
+                  <div className="popup-header-tag text-amber">SIMULATED CITIZEN POSITION</div>
+                  <div className="popup-title">{userCurrentRoad}</div>
+                  <div className="popup-body">
+                    Your device is registered for route-aware corridor alerts in this Patna sector.
+                  </div>
                 </div>
-              </div>
-            </Popup>
-          </Marker>
+              </Popup>
+            </Marker>
+          )}
 
           {/* Traffic Hazard / Community Incident Markers */}
           {trafficReports.map((report) => {

@@ -105,9 +105,24 @@ export function TrafficFeed({ onSelectReport }) {
                 <div className="feed-item-content">
                   <div className="feed-item-topline">
                     <span className="feed-road-title">{report.roadSegment}</span>
-                    <Badge variant={badgeVariant} size="sm">
-                      {report.reportType}
-                    </Badge>
+                    <div className="feed-item-badges">
+                      <Badge variant={badgeVariant} size="xs">
+                        {report.reportType}
+                      </Badge>
+                      <Badge
+                        variant={(report.locationStatus || 'LOCATION UNVERIFIED') === 'LOCATION MATCHED' ? 'clear' : 'warning'}
+                        size="xs"
+                      >
+                        {report.locationStatus || 'LOCATION UNVERIFIED'}
+                      </Badge>
+                      <Badge
+                        variant={(report.corroborationStatus || (report.verifiedCount > 1 ? 'CORROBORATED' : 'UNVERIFIED REPORT')) === 'CORROBORATED' ? 'warning' : 'neutral'}
+                        size="xs"
+                      >
+                        {report.corroborationStatus || (report.verifiedCount > 1 ? 'CORROBORATED' : 'UNVERIFIED REPORT')}
+                      </Badge>
+                      <Badge variant="neutral" size="xs">DEMO DATA</Badge>
+                    </div>
                   </div>
 
                   <div className="feed-item-description">{report.locationDescription}</div>

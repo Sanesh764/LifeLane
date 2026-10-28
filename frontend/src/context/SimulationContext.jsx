@@ -59,9 +59,28 @@ export function SimulationProvider({ children }) {
   const [isSubscribed, setIsSubscribed] = useState(true);
   const [userCurrentRoad, setUserCurrentRoad] = useState('Bailey Road / Jawaharlal Nehru Marg');
 
+  // Focused Mission Navigation Mode State (Active mission prioritizes ~80% map)
+  const [isFocusedMissionMode, setIsFocusedMissionMode] = useState(true);
+  const toggleFocusedMissionMode = useCallback(() => {
+    setIsFocusedMissionMode((prev) => !prev);
+  }, []);
+
+  // Device Geolocation State (Captured on explicit user interaction)
+  const [userGpsLocation, setUserGpsLocation] = useState({
+    lat: null,
+    lng: null,
+    accuracy: null, // in meters
+    timestamp: null,
+    status: 'IDLE', // 'IDLE' | 'LOCATING' | 'SUCCESS' | 'DENIED' | 'UNAVAILABLE' | 'TIMEOUT' | 'UNSUPPORTED'
+    errorMessage: null,
+  });
+
   // Audio / Voice Route Assistance
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [latestVoiceGuidance, setLatestVoiceGuidance] = useState(
+    'AmbuRoute navigation engine on standby. Ready for emergency dispatch.'
+  );
 
   // Feedback Toasts
   const [toasts, setToasts] = useState([]);
@@ -83,8 +102,9 @@ export function SimulationProvider({ children }) {
     voiceService.setMuted(isMuted);
   }, [isMuted]);
 
-  // Voice Guidance Trigger
+  // Voice Guidance Trigger (Deterministic verbal dispatch assistance with uncertainty preservation)
   const triggerVoiceGuidance = useCallback((text) => {
+    setLatestVoiceGuidance(text);
     if (isMuted) return;
     setIsSpeaking(true);
     voiceService.speakRecommendation(
@@ -121,6 +141,7 @@ export function SimulationProvider({ children }) {
     setCurrentRoute(INITIAL_ROUTE);
     setRecommendationDecision(null);
     setActiveRecommendation(null);
+    setIsFocusedMissionMode(true);
     setDriverSubTab('active');
     setActiveTab('driver');
     window.location.hash = 'driver/active';
@@ -131,11 +152,13 @@ export function SimulationProvider({ children }) {
       'success'
     );
 
-    triggerVoiceGuidance(`Emergency trip started to ${selectedDestination.shortName || selectedDestination.name}. Monitoring Patna traffic on route.`);
+    triggerVoiceGuidance(
+      `Emergency mission started to ${selectedDestination.shortName || selectedDestination.name}. Proceed along ${INITIAL_ROUTE.segments[0].roadName}.`
+    );
     return true;
   }, [tripStatus, selectedDestination, addToast, triggerVoiceGuidance]);
 
-  // Handle Ending Emergency Trip
+  // Handle Ending Emergency Trip (Safe return to Standby Home dashboard)
   const endTrip = useCallback(() => {
     if (tripStatus === 'ACTIVE') {
       const durationMins = tripStartTime
@@ -160,11 +183,20 @@ export function SimulationProvider({ children }) {
       };
       setTripHistory((prev) => [completedRecord, ...prev]);
     }
-    setTripStatus('COMPLETED');
+    setTripStatus('IDLE');
+    setTripStartTime(null);
+    setActiveRecommendation(null);
+    setRecommendationDecision(null);
+    setCurrentRoute(INITIAL_ROUTE);
+    setCurrentSegmentIdx(0);
+    setIsFocusedMissionMode(true);
     voiceService.stop();
     setIsSpeaking(false);
-    addToast('Emergency Mission Concluded', 'Trip ended. Active road-user alerts deactivated.', 'info');
-  }, [tripStatus, tripStartTime, selectedDestination, selectedVehicle, currentUser, currentRoute, recommendationDecision, addToast]);
+    setDriverSubTab('home');
+    window.location.hash = 'driver/home';
+    triggerVoiceGuidance('Emergency mission concluded. Unit returned to standby.');
+    addToast('Emergency Mission Concluded', 'Trip ended. Unit returned to Standby dashboard.', 'info');
+  }, [tripStatus, tripStartTime, selectedDestination, selectedVehicle, currentUser, currentRoute, recommendationDecision, triggerVoiceGuidance, addToast]);
 
   // Handle Driver Login
   const login = useCallback((email, password) => {
@@ -223,12 +255,18 @@ export function SimulationProvider({ children }) {
       if (nextIdx === 1 && currentRoute.id === INITIAL_ROUTE.id && !recommendationDecision) {
         setActiveRecommendation(ALTERNATIVE_ROUTE);
         addToast('Route Recommendation Generated', 'Obstruction on Fraser Road. Reroute via Atal Path available.', 'warning');
-        triggerVoiceGuidance('Obstruction reported ahead on Fraser Road. An alternative via Atal Path and JP Ganga Path is available and estimated to save 6 minutes. Please review and confirm.');
+        triggerVoiceGuidance(
+          'A road blockage has been reported near Dak Bungalow Crossing. The report is not yet confirmed. An alternative via Atal Path riverfront bypass is available. Please review and confirm.'
+        );
+      } else {
+        triggerVoiceGuidance(
+          `Approaching ${nextRoad}. Destination: ${selectedDestination.shortName || selectedDestination.name}.`
+        );
       }
     } else {
       endTrip();
     }
-  }, [tripStatus, currentSegmentIdx, currentRoute, recommendationDecision, addToast, triggerVoiceGuidance, endTrip]);
+  }, [tripStatus, currentSegmentIdx, currentRoute, recommendationDecision, selectedDestination, addToast, triggerVoiceGuidance, endTrip]);
 
   // Driver Confirmation: Accept Alternative Route
   const acceptRecommendation = useCallback(() => {
@@ -238,7 +276,7 @@ export function SimulationProvider({ children }) {
     setCurrentSegmentIdx(0); // Transition to alternative route
     setActiveRecommendation(null);
     addToast('Alternative Route Confirmed', 'Route recalculated via Atal Path & JP Ganga Path. ETA improved by 6 minutes.', 'success');
-    triggerVoiceGuidance('Route changed to JP Ganga Path bypass. Navigation updated.');
+    triggerVoiceGuidance('Alternative route confirmed by driver. Route updated via Atal Path and JP Ganga Path bypass.');
   }, [activeRecommendation, addToast, triggerVoiceGuidance]);
 
   // Driver Confirmation: Reject Alternative Route
@@ -246,25 +284,128 @@ export function SimulationProvider({ children }) {
     setRecommendationDecision('REJECTED');
     setActiveRecommendation(null);
     addToast('Recommendation Dismissed', 'Retaining primary arterial route via Bailey Road as instructed by driver.', 'neutral');
-    triggerVoiceGuidance('Alternative dismissed. Continuing on current route.');
+    triggerVoiceGuidance('Alternative dismissed. Continuing on primary arterial corridor via Bailey Road as instructed.');
   }, [addToast, triggerVoiceGuidance]);
 
-  // Submit Traffic Report
-  const submitTrafficReport = useCallback((reportType, roadSegment, description) => {
+  // Explicit User Action: Request Geolocation via Browser API
+  const requestUserLocation = useCallback(() => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      setUserGpsLocation({
+        lat: null,
+        lng: null,
+        accuracy: null,
+        timestamp: null,
+        status: 'UNSUPPORTED',
+        errorMessage: 'Geolocation is not supported by your current browser environment.',
+      });
+      addToast('Location Not Supported', 'Browser Geolocation is not supported in this environment.', 'neutral');
+      return;
+    }
+
+    setUserGpsLocation((prev) => ({
+      ...prev,
+      status: 'LOCATING',
+      errorMessage: null,
+    }));
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = Number(position.coords.latitude.toFixed(6));
+        const lng = Number(position.coords.longitude.toFixed(6));
+        const accuracy = Math.round(position.coords.accuracy);
+        const timestamp = new Date(position.timestamp || Date.now()).toISOString();
+
+        setUserGpsLocation({
+          lat,
+          lng,
+          accuracy,
+          timestamp,
+          status: 'SUCCESS',
+          errorMessage: null,
+        });
+        addToast('GPS Location Detected', `Accuracy ±${accuracy}m captured. You can review your report location.`, 'info');
+      },
+      (error) => {
+        let status = 'UNAVAILABLE';
+        let msg = 'Unable to retrieve device location. Manual selection remains active.';
+
+        if (error.code === 1) { // PERMISSION_DENIED
+          status = 'DENIED';
+          msg = 'Location permission was denied. You can still report traffic by selecting a road manually.';
+        } else if (error.code === 2) { // POSITION_UNAVAILABLE
+          status = 'UNAVAILABLE';
+          msg = 'Location services are unavailable or disabled on this device. Manual selection remains active.';
+        } else if (error.code === 3) { // TIMEOUT
+          status = 'TIMEOUT';
+          msg = 'Device location request timed out. You may retry or select a road manually.';
+        }
+
+        setUserGpsLocation({
+          lat: null,
+          lng: null,
+          accuracy: null,
+          timestamp: null,
+          status,
+          errorMessage: msg,
+        });
+        addToast('Location Unavailable', msg, 'neutral');
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000,
+      }
+    );
+  }, [addToast]);
+
+  const clearUserLocation = useCallback(() => {
+    setUserGpsLocation({
+      lat: null,
+      lng: null,
+      accuracy: null,
+      timestamp: null,
+      status: 'IDLE',
+      errorMessage: null,
+    });
+  }, []);
+
+  // Submit Traffic Report with Optional Frontend Location Metadata
+  const submitTrafficReport = useCallback((reportType, roadSegment, description, locationMeta = null) => {
+    const targetRoad = roadSegment || userCurrentRoad;
+    
+    // Check if other reports in current feed match this road segment
+    const matchingReports = trafficReports.filter(
+      (r) => r.roadSegment.toLowerCase() === targetRoad.toLowerCase()
+    );
+
+    const isCorroborated = matchingReports.length > 0;
+    const locationStatus = locationMeta?.locationStatus || 'LOCATION UNVERIFIED';
+
     const newReport = {
       id: `rep-${Date.now()}`,
       reportType,
-      roadSegment: roadSegment || userCurrentRoad,
-      locationDescription: description || `Reported near ${roadSegment || userCurrentRoad}, Patna`,
+      roadSegment: targetRoad,
+      locationDescription: description || `Reported near ${targetRoad}, Patna`,
       timestamp: new Date().toISOString(),
       freshness: 'JUST_NOW',
-      verifiedCount: 1,
+      verifiedCount: isCorroborated ? matchingReports.length + 1 : 1,
       source: 'Participating Citizen (Patna)',
       status: 'ACTIVE',
+      isDemo: true,
+      locationStatus,
+      coordinates: locationMeta?.coordinates || null,
+      gpsAccuracy: locationMeta?.accuracy || null,
+      locationCapturedAt: locationMeta?.locationCapturedAt || null,
+      corroborationStatus: isCorroborated ? 'CORROBORATED' : 'UNVERIFIED REPORT',
     };
 
     setTrafficReports((prev) => [newReport, ...prev]);
-    addToast('Observation Recorded', `Your traffic report for ${newReport.roadSegment} has been submitted for ambulance routing.`, 'success');
+    setSelectedIncident(newReport);
+    addToast(
+      'Observation Recorded',
+      `Your report for ${newReport.roadSegment} has been submitted (${locationStatus}).`,
+      'success'
+    );
 
     // If report is ROAD_BLOCKED or TRAFFIC_HIGH and relevant to ambulance route, evaluate recommendation
     if (tripStatus === 'ACTIVE' && (reportType === 'ROAD_BLOCKED' || reportType === 'TRAFFIC_HIGH')) {
@@ -273,7 +414,7 @@ export function SimulationProvider({ children }) {
         triggerVoiceGuidance('New traffic observation received for your upcoming Patna route. An alternative is ready for review.');
       }
     }
-  }, [userCurrentRoad, tripStatus, currentRoute, recommendationDecision, addToast, triggerVoiceGuidance]);
+  }, [userCurrentRoad, trafficReports, tripStatus, currentRoute, recommendationDecision, addToast, triggerVoiceGuidance]);
 
   // Determine if this road user should receive an active ambulance alert
   // Route-Aware Condition:
@@ -351,6 +492,10 @@ export function SimulationProvider({ children }) {
     startTrip,
     endTrip,
     advanceSegment,
+    isFocusedMissionMode,
+    setIsFocusedMissionMode,
+    toggleFocusedMissionMode,
+    latestVoiceGuidance,
     // Trip History & Driver Settings
     tripHistory,
     setTripHistory,
@@ -378,6 +523,9 @@ export function SimulationProvider({ children }) {
     setIsSubscribed,
     userCurrentRoad,
     setUserCurrentRoad,
+    userGpsLocation,
+    requestUserLocation,
+    clearUserLocation,
     activeAlertForUser,
     // Voice & Toasts
     isMuted,

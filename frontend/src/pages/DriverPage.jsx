@@ -24,9 +24,15 @@ import { DriverSettings } from '../components/driver/portal/DriverSettings.jsx';
  * 7. Unit Settings
  */
 export function DriverPage() {
-  const { driverSubTab, navigateToDriverSubTab, tripStatus } = useSimulation();
+  const {
+    driverSubTab,
+    navigateToDriverSubTab,
+    tripStatus,
+    isFocusedMissionMode,
+  } = useSimulation();
 
   const isTripActive = tripStatus === 'ACTIVE';
+  const isFocusedActive = isTripActive && isFocusedMissionMode && driverSubTab === 'active';
 
   const subTabs = [
     { id: 'home', label: 'Home' },
@@ -43,7 +49,7 @@ export function DriverPage() {
   };
 
   return (
-    <div className="driver-portal-layout">
+    <div className={`driver-portal-layout ${isFocusedActive ? 'driver-portal-layout--focused' : ''}`}>
       {/* Persistent Left Sidebar on Desktop (>= 900px) */}
       <DriverSidebar />
 
