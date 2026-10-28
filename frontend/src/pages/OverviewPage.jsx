@@ -14,6 +14,9 @@ import {
   AlertTriangleIcon,
   Volume2Icon,
   MapPinIcon,
+  CheckCircleIcon,
+  OctagonAlertIcon,
+  HelpCircleIcon,
 } from '../components/common/Icons.jsx';
 
 /**
@@ -155,6 +158,93 @@ export function OverviewPage() {
                 <div className="preview-step-name">Driver Confirmed Detour</div>
                 <div className="preview-step-desc">Bypass congestion via Atal Path & Marine Drive</div>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------------------------------------------------------------------
+         Feature B: Public Homepage Quick Action: Report a Road Condition
+         --------------------------------------------------------------------- */}
+      <section className="home-quick-report-section" aria-label="Quick Road Condition Reporting">
+        <div className="quick-report-banner">
+          <div className="quick-report-content">
+            <div className="quick-report-badge-row">
+              <Badge variant="warning" size="sm">CITIZEN TRANSIT INTELLIGENCE</Badge>
+              <Badge variant="neutral" size="sm">PATNA CORRIDOR</Badge>
+            </div>
+
+            <h2 className="quick-report-title">Report a Road Condition</h2>
+
+            <p className="quick-report-desc">
+              Notice traffic congestion or a blocked road in Patna? Share a road-condition observation to help improve ambulance route awareness.
+            </p>
+
+            <div className="quick-report-categories">
+              <span className="category-pill category-pill--clear">
+                <CheckCircleIcon size={14} className="text-mint" />
+                <span>Clear Flowing</span>
+              </span>
+              <span className="category-pill category-pill--heavy">
+                <AlertTriangleIcon size={14} className="text-amber" />
+                <span>Heavy Traffic</span>
+              </span>
+              <span className="category-pill category-pill--blocked">
+                <OctagonAlertIcon size={14} className="text-red" />
+                <span>Road Blocked</span>
+              </span>
+              <span className="category-pill category-pill--assess">
+                <HelpCircleIcon size={14} />
+                <span>Cannot Assess</span>
+              </span>
+            </div>
+
+            <div className="quick-report-actions">
+              <Button
+                variant="primary"
+                size="md"
+                icon={AlertTriangleIcon}
+                onClick={() => {
+                  setActiveTab('report');
+                  window.location.hash = 'report';
+                }}
+                className="btn-quick-report"
+              >
+                Report Traffic
+              </Button>
+
+              <Button
+                variant="outline"
+                size="md"
+                icon={BellIcon}
+                onClick={() => {
+                  setActiveTab('alerts');
+                  window.location.hash = 'alerts';
+                }}
+                className="btn-quick-alerts"
+              >
+                Enable Ambulance Alerts
+              </Button>
+            </div>
+          </div>
+
+          <div className="quick-report-side-card">
+            <div className="side-card-header">
+              <span className="side-card-tag">PUBLIC PARTICIPATION</span>
+              <span className="side-card-status">NO LOGIN REQUIRED</span>
+            </div>
+            <div className="side-card-body">
+              <div className="side-card-stat">
+                <strong>4 Supported Categories</strong>
+                <span>One-tap submissions for instant routing awareness</span>
+              </div>
+              <div className="side-card-stat">
+                <strong>Direction & Freshness Checks</strong>
+                <span>Stale & unverified entries are filtered automatically</span>
+              </div>
+            </div>
+            <div className="side-card-footer">
+              Ambulance drivers review verified observations before confirming detours.
             </div>
           </div>
         </div>

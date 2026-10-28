@@ -5,6 +5,7 @@ import {
   INITIAL_ROUTE,
   ALTERNATIVE_ROUTE,
   INITIAL_TRAFFIC_REPORTS,
+  DEMO_TRIP_HISTORY,
 } from '../services/mockData.js';
 import { voiceService } from '../services/voiceService.js';
 import { authService } from '../services/authService.js';
@@ -13,6 +14,7 @@ import { SimulationContext } from './simulationContextInstance.js';
 export function SimulationProvider({ children }) {
   // Navigation / Active View
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'driver', 'alerts', 'report', 'login'
+  const [driverSubTab, setDriverSubTab] = useState('home'); // 'home', 'start', 'active', 'history', 'traffic', 'notifications', 'settings'
   const [pendingAction, setPendingAction] = useState(null); // 'START_AMBULANCE' | null
 
   // Authentication State
@@ -27,6 +29,16 @@ export function SimulationProvider({ children }) {
   const [currentRoute, setCurrentRoute] = useState(INITIAL_ROUTE);
   const [currentSegmentIdx, setCurrentSegmentIdx] = useState(0);
   const currentSpeedKmh = 48;
+
+  // Driver Trip History & Settings
+  const [tripHistory, setTripHistory] = useState(DEMO_TRIP_HISTORY);
+  const [driverSettings, setDriverSettings] = useState({
+    voiceVolume: 1.0,
+    voiceRate: 1.0,
+    sirenSoundEnabled: true,
+    autoAlertNotifications: true,
+    pilotSector: 'Patna Central Arterial Sector',
+  });
 
   // Recommendations
   const [activeRecommendation, setActiveRecommendation] = useState(null);
@@ -98,6 +110,8 @@ export function SimulationProvider({ children }) {
 
     if (tripStatus === 'ACTIVE') {
       addToast('Mission Already Active', 'An emergency mission is already running in this vehicle.', 'info');
+      setDriverSubTab('active');
+      window.location.hash = 'driver/active';
       return true;
     }
 
@@ -107,6 +121,10 @@ export function SimulationProvider({ children }) {
     setCurrentRoute(INITIAL_ROUTE);
     setRecommendationDecision(null);
     setActiveRecommendation(null);
+    setDriverSubTab('active');
+    setActiveTab('driver');
+    window.location.hash = 'driver/active';
+
     addToast(
       'Emergency Mission Dispatched',
       `En route to ${selectedDestination.name}. Route-aware broadcast active for Patna corridors (500m radius).`,
@@ -119,11 +137,34 @@ export function SimulationProvider({ children }) {
 
   // Handle Ending Emergency Trip
   const endTrip = useCallback(() => {
+    if (tripStatus === 'ACTIVE') {
+      const durationMins = tripStartTime
+        ? Math.max(1, Math.round((Date.now() - new Date(tripStartTime).getTime()) / 60000))
+        : 14;
+      const completedRecord = {
+        id: `TRIP-PAT-108-${Math.floor(410 + Math.random() * 50)}`,
+        startTime: tripStartTime ? new Date(tripStartTime).toISOString() : new Date(Date.now() - durationMins * 60000).toISOString(),
+        endTime: new Date().toISOString(),
+        destination: selectedDestination.name,
+        shortDestination: selectedDestination.shortName || selectedDestination.name,
+        vehicleNumber: selectedVehicle.vehicleNumber,
+        callSign: selectedVehicle.callSign,
+        driverName: currentUser?.driverName || 'Amitabh Sen',
+        status: 'COMPLETED',
+        distanceKm: selectedDestination.distanceKm || 6.0,
+        durationMins,
+        routeTaken: currentRoute.name,
+        detourAccepted: recommendationDecision === 'ACCEPTED',
+        alertsDelivered: 35,
+        outcome: `Patient safely delivered to ${selectedDestination.shortName || selectedDestination.name}`,
+      };
+      setTripHistory((prev) => [completedRecord, ...prev]);
+    }
     setTripStatus('COMPLETED');
     voiceService.stop();
     setIsSpeaking(false);
     addToast('Emergency Mission Concluded', 'Trip ended. Active road-user alerts deactivated.', 'info');
-  }, [addToast]);
+  }, [tripStatus, tripStartTime, selectedDestination, selectedVehicle, currentUser, currentRoute, recommendationDecision, addToast]);
 
   // Handle Driver Login
   const login = useCallback((email, password) => {
@@ -135,19 +176,18 @@ export function SimulationProvider({ children }) {
       // Check if there was a pending start action
       if (pendingAction === 'START_AMBULANCE') {
         setPendingAction(null);
-        setTimeout(() => {
-          startTrip();
-          setActiveTab('driver');
-          window.location.hash = 'driver';
-        }, 150);
+        setActiveTab('driver');
+        setDriverSubTab('start');
+        window.location.hash = 'driver/start';
       } else {
         setActiveTab('driver');
-        window.location.hash = 'driver';
+        setDriverSubTab('home');
+        window.location.hash = 'driver/home';
       }
       return { success: true };
     }
     return { success: false, error: result.error };
-  }, [pendingAction, addToast, startTrip]);
+  }, [pendingAction, addToast]);
 
   // Handle Driver Logout
   const logout = useCallback(() => {
@@ -157,10 +197,17 @@ export function SimulationProvider({ children }) {
     authService.logout();
     setCurrentUser(null);
     setPendingAction(null);
+    setDriverSubTab('home');
     addToast('Logged Out', 'Driver credentials cleared. Direct dashboard access restricted.', 'info');
     setActiveTab('overview');
     window.location.hash = 'overview';
   }, [tripStatus, endTrip, addToast]);
+
+  const navigateToDriverSubTab = useCallback((subTab) => {
+    setDriverSubTab(subTab);
+    setActiveTab('driver');
+    window.location.hash = `driver/${subTab}`;
+  }, []);
 
   // Handle Advancing Ambulance Position (Demo Stepper)
   const advanceSegment = useCallback(() => {
@@ -281,6 +328,9 @@ export function SimulationProvider({ children }) {
   const value = {
     activeTab,
     setActiveTab,
+    driverSubTab,
+    setDriverSubTab,
+    navigateToDriverSubTab,
     pendingAction,
     setPendingAction,
     // Authentication
@@ -301,6 +351,11 @@ export function SimulationProvider({ children }) {
     startTrip,
     endTrip,
     advanceSegment,
+    // Trip History & Driver Settings
+    tripHistory,
+    setTripHistory,
+    driverSettings,
+    setDriverSettings,
     // Recommendations
     activeRecommendation,
     recommendationDecision,

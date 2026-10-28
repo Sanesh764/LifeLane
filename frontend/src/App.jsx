@@ -12,19 +12,39 @@ import { TrafficReportPage } from './pages/TrafficReportPage.jsx';
 import { ToastContainer } from './components/common/Toast.jsx';
 
 function AppContent() {
-  const { activeTab, setActiveTab, isAuthenticated, toasts, dismissToast } = useSimulation();
+  const {
+    activeTab,
+    setActiveTab,
+    setDriverSubTab,
+    isAuthenticated,
+    toasts,
+    dismissToast,
+  } = useSimulation();
 
   // Listen to hash changes for robust browser navigation & direct links
   useEffect(() => {
     function handleHashChange() {
-      const hash = window.location.hash.replace('#', '').toLowerCase();
-      if (['overview', 'driver', 'alerts', 'report', 'login'].includes(hash)) {
-        if (hash === 'driver' && !isAuthenticated) {
+      const fullHash = window.location.hash.replace('#', '').toLowerCase();
+      const parts = fullHash.split('/');
+      const mainTab = parts[0];
+      const subTab = parts[1];
+
+      if (mainTab === 'driver') {
+        if (!isAuthenticated) {
           setActiveTab('login');
           window.location.hash = 'login';
         } else {
-          setActiveTab(hash);
+          setActiveTab('driver');
+          const validSubTabs = ['home', 'start', 'active', 'history', 'traffic', 'notifications', 'settings'];
+          if (subTab && validSubTabs.includes(subTab)) {
+            setDriverSubTab(subTab);
+          } else {
+            setDriverSubTab('home');
+            window.location.hash = 'driver/home';
+          }
         }
+      } else if (['overview', 'alerts', 'report', 'login'].includes(mainTab)) {
+        setActiveTab(mainTab);
       }
     }
 
@@ -36,7 +56,7 @@ function AppContent() {
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [setActiveTab, isAuthenticated]);
+  }, [setActiveTab, setDriverSubTab, isAuthenticated]);
 
   return (
     <div className="app-shell">

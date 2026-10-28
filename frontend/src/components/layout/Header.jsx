@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSimulation } from '../../context/useSimulation.js';
 import {
-  SirenIcon,
+  AmbulanceIcon,
   Volume2Icon,
   VolumeXIcon,
   RefreshCwIcon,
@@ -72,7 +72,7 @@ export function Header() {
 
   const handleDriverNavClick = () => {
     if (isAuthenticated) {
-      handleNavClick('driver');
+      handleNavClick('driver/home');
     } else {
       handleNavClick('login');
     }
@@ -88,7 +88,7 @@ export function Header() {
           title="Return to AmbuRoute Overview"
         >
           <div className={`brand-mark ${isTripActive ? 'brand-mark--emergency' : ''}`}>
-            <SirenIcon size={22} className="brand-mark__icon" />
+            <AmbulanceIcon size={22} className="brand-mark__icon" />
           </div>
           <div className="brand-text-block">
             <div className="brand-title">AmbuRoute</div>
@@ -110,7 +110,7 @@ export function Header() {
             className={`app-nav__item ${activeTab === 'driver' || activeTab === 'login' ? 'is-active' : ''}`}
             onClick={handleDriverNavClick}
           >
-            Driver Cockpit
+            Driver Portal
           </button>
           <button
             type="button"
@@ -244,7 +244,7 @@ export function Header() {
             className={`mobile-nav-item ${activeTab === 'driver' || activeTab === 'login' ? 'is-active' : ''}`}
             onClick={handleDriverNavClick}
           >
-            <span>Driver Cockpit</span>
+            <span>Driver Portal</span>
             {(activeTab === 'driver' || activeTab === 'login') && <span className="active-dot" />}
           </button>
           <button
