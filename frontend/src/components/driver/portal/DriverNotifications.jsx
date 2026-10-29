@@ -197,7 +197,7 @@ export function DriverNotifications() {
           <div className="notif-disclaimer-card">
             <RadioIcon size={18} className="text-primary" />
             <div className="disclaimer-text">
-              <strong>Push Delivery Architecture:</strong> Production mobile notifications require Web Push VAPID keys, service worker push subscription, and a telecommunication SMS/FCM backend. In this prototype, browser notifications and in-app toasts demonstrate the workflow honestly.
+              <strong>Push Delivery Architecture:</strong> Standard Web Push VAPID keys, service worker push subscriptions, 30s location heartbeats, and proximity targeting are fully implemented. When an emergency trip starts, the backend push engine dispatches urgent notifications to all consented devices within 2–5 km.
             </div>
           </div>
         </div>

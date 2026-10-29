@@ -173,7 +173,7 @@ function MapController({ center, zoom, shouldRecenter, onRecentered }) {
   }, [map]);
 
   useEffect(() => {
-    if (shouldRecenter && center) {
+    if (center && Number.isFinite(center[0]) && Number.isFinite(center[1])) {
       map.setView(center, zoom || 14, { animate: true });
       if (onRecentered) onRecentered();
     }
@@ -215,13 +215,39 @@ export function SimulationMap({ className = '', onSelectIncident }) {
 
   // Destination coordinates
   const destinationCoordinates = useMemo(() => {
+    if (!selectedDestination) return null;
+    if (selectedDestination.coordinates && Array.isArray(selectedDestination.coordinates)) {
+      return [selectedDestination.coordinates[1], selectedDestination.coordinates[0]];
+    }
     return getCoordinatesForRoad(selectedDestination.shortName || selectedDestination.name);
   }, [selectedDestination]);
 
   // User simulated road coordinates
   const userCoordinates = useMemo(() => {
-    return getCoordinatesForRoad(userCurrentRoad);
+    const roadStr = typeof userCurrentRoad === 'string' ? userCurrentRoad : (userCurrentRoad?.displayName || userCurrentRoad?.road || '');
+    return getCoordinatesForRoad(roadStr);
   }, [userCurrentRoad]);
+
+  // Check if live GPS is captured
+  const hasUserGps = Boolean(
+    userGpsLocation?.status === 'SUCCESS' && userGpsLocation?.lat && userGpsLocation?.lng
+  );
+
+  // Dynamic effective map center based on context: User GPS -> Active Ambulance -> Regional Center
+  const effectiveMapCenter = useMemo(() => {
+    if (hasUserGps) {
+      return [userGpsLocation.lat, userGpsLocation.lng];
+    }
+    if (isTripActive && ambulanceCoordinates) {
+      return ambulanceCoordinates;
+    }
+    return PATNA_MAP_CENTER;
+  }, [hasUserGps, userGpsLocation?.lat, userGpsLocation?.lng, isTripActive, ambulanceCoordinates]);
+
+  const effectiveMapZoom = useMemo(() => {
+    if (hasUserGps) return 15;
+    return DEFAULT_MAP_ZOOM;
+  }, [hasUserGps]);
 
   // Recenter handler
   const handleRecenter = useCallback(() => {
@@ -244,22 +270,37 @@ export function SimulationMap({ className = '', onSelectIncident }) {
         <div className="simulation-map-title-group">
           <div className="simulation-map-dot-pulse" />
           <div>
-            <div className="simulation-map-title">PATNA REAL GEOGRAPHIC CORRIDOR MAP</div>
+            <div className="simulation-map-title">
+              {hasUserGps ? 'LIVE ROAD NETWORK & OBSERVATIONS MAP' : 'REGIONAL GEOGRAPHIC CORRIDOR MAP'}
+            </div>
             <div className="simulation-map-subtitle">
-              LEAFLET · OPENSTREETMAP TILES · 500M PROXIMITY ENVELOPE
+              LEAFLET · OPENSTREETMAP TILES · REAL-TIME GPS TRACKING
             </div>
           </div>
         </div>
 
         <div className="simulation-map-controls">
+          {/* Recenter on GPS location if available */}
+          {hasUserGps && (
+            <button
+              type="button"
+              className="map-recenter-btn"
+              style={{ background: '#0F766E', color: '#ffffff', borderColor: '#0d9488' }}
+              onClick={handleRecenter}
+              title="Recenter view on your live physical GPS location"
+            >
+              📍 My Location
+            </button>
+          )}
+
           {/* Recenter Action Button */}
           <button
             type="button"
             className="map-recenter-btn"
             onClick={handleRecenter}
-            title="Recenter map on active ambulance position"
+            title={isTripActive ? 'Recenter map on active ambulance position' : 'Recenter map'}
           >
-            Recenter on Ambulance
+            {isTripActive ? 'Recenter Ambulance' : 'Recenter View'}
           </button>
 
           <Badge variant={isTripActive ? 'critical' : 'neutral'} size="sm">
@@ -291,8 +332,8 @@ export function SimulationMap({ className = '', onSelectIncident }) {
       {/* Leaflet MapContainer */}
       <div className="simulation-map-leaflet-wrapper">
         <MapContainer
-          center={PATNA_MAP_CENTER}
-          zoom={DEFAULT_MAP_ZOOM}
+          center={effectiveMapCenter}
+          zoom={effectiveMapZoom}
           scrollWheelZoom={true}
           className="leaflet-map-root"
           attributionControl={true}
@@ -309,8 +350,8 @@ export function SimulationMap({ className = '', onSelectIncident }) {
 
           {/* Programmatic View Controller */}
           <MapController
-            center={ambulanceCoordinates}
-            zoom={14}
+            center={effectiveMapCenter}
+            zoom={effectiveMapZoom}
             shouldRecenter={shouldRecenter}
             onRecentered={() => setShouldRecenter(false)}
           />
@@ -388,20 +429,22 @@ export function SimulationMap({ className = '', onSelectIncident }) {
           })}
 
           {/* Destination Hospital Marker */}
-          <Marker
-            position={destinationCoordinates}
-            icon={createHospitalIcon(selectedDestination.shortName || selectedDestination.name)}
-          >
-            <Popup className="custom-leaflet-popup">
-              <div className="popup-inner">
-                <div className="popup-header-tag text-red">EMERGENCY DESTINATION</div>
-                <div className="popup-title">{selectedDestination.name}</div>
-                <div className="popup-body">
-                  Target Trauma Center · Distance: {selectedDestination.distanceKm} km (~{selectedDestination.baseEtaMins} min base travel)
+          {destinationCoordinates && selectedDestination && (
+            <Marker
+              position={destinationCoordinates}
+              icon={createHospitalIcon(selectedDestination.shortName || selectedDestination.name)}
+            >
+              <Popup className="custom-leaflet-popup">
+                <div className="popup-inner">
+                  <div className="popup-header-tag text-red">EMERGENCY DESTINATION</div>
+                  <div className="popup-title">{selectedDestination.name}</div>
+                  <div className="popup-body">
+                    Target Trauma Center · Distance: {selectedDestination.distanceKm || 'Unknown'} km
+                  </div>
                 </div>
-              </div>
-            </Popup>
-          </Marker>
+              </Popup>
+            </Marker>
+          )}
 
           {/* Detected Device GPS Location Marker & Accuracy Circle (When captured) */}
           {userGpsLocation?.status === 'SUCCESS' && userGpsLocation.lat && userGpsLocation.lng ? (
@@ -455,7 +498,14 @@ export function SimulationMap({ className = '', onSelectIncident }) {
 
           {/* Traffic Hazard / Community Incident Markers */}
           {trafficReports.map((report) => {
-            const coords = getCoordinatesForRoad(report.roadSegment);
+            let coords = null;
+            if (report.coordinates && Array.isArray(report.coordinates) && report.coordinates.length === 2) {
+              coords = report.coordinates; // [lat, lng]
+            } else {
+              coords = getCoordinatesForRoad(report.roadSegment);
+            }
+            if (!coords || !Number.isFinite(coords[0]) || !Number.isFinite(coords[1])) return null;
+
             const isSelected = selectedIncident && selectedIncident.id === report.id;
 
             return (
@@ -497,7 +547,7 @@ export function SimulationMap({ className = '', onSelectIncident }) {
                   <div className="popup-title">{selectedVehicle.callSign}</div>
                   <div className="popup-body">
                     Vehicle: <strong>{selectedVehicle.vehicleNumber}</strong><br />
-                    En Route to: <strong>{selectedDestination.shortName || selectedDestination.name}</strong><br />
+                    En Route to: <strong>{selectedDestination?.shortName || selectedDestination?.name || 'Assigned Center'}</strong><br />
                     Current Corridor: <strong>{currentSeg.roadName}</strong>
                   </div>
                 </div>

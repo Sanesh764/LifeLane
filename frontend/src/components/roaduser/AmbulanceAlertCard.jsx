@@ -47,12 +47,12 @@ export function AmbulanceAlertCard() {
             <CheckCircleIcon size={28} className="text-mint" />
           </div>
           <div className="alert-idle-content">
-            <div className="alert-idle-tag">CORRIDOR MONITORING ARMED</div>
+            <div className="alert-idle-tag">PROXIMITY RADAR ARMED</div>
             <h3 className="alert-idle-title">No Approaching Ambulance in Your Sector</h3>
             <p className="alert-idle-desc">
               {tripStatus === 'ACTIVE'
-                ? `An emergency mission is active elsewhere in Patna, but you are not on its upcoming 500m path (Your simulated sector: ${userCurrentRoad}).`
-                : `Ambulance fleet is on standby. When a mission dispatches toward ${userCurrentRoad}, you will receive a high-visibility yield alert here.`}
+                ? `An emergency mission is active, but outside your 2–5 km proximity envelope${userCurrentRoad ? ` (${userCurrentRoad})` : ''}.`
+                : `Ambulance fleet is on standby. When an active emergency mission approaches within 2–5 km of ${userCurrentRoad || 'your location'}, you will receive an instant high-visibility yield alert.`}
             </p>
           </div>
         </div>

@@ -64,7 +64,7 @@ export function DriverSettings() {
             </div>
             <div className="settings-field-row">
               <span className="field-label">Authenticated Account:</span>
-              <span className="field-val">{currentUser?.email || 'driver@amburoute.demo'}</span>
+              <span className="field-val">{currentUser?.email || 'N/A'}</span>
             </div>
             <div className="settings-field-row">
               <span className="field-label">Authorization Role:</span>

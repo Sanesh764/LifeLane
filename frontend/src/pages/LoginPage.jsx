@@ -7,11 +7,8 @@ import { Badge } from '../components/common/Badge.jsx';
 
 /**
  * Driver Login Page
- *
- * SECURITY LIMITATION NOTICE:
- * This component provides frontend demo UI access control for prototype evaluation.
- * Production deployments require server-side cryptographic authentication, HTTPS-only
- * secure session cookies or JWTs, and institutional driver vetting.
+ * Connects directly to AmbuRoute Backend API (POST /api/v1/auth/login)
+ * Strictly enforces server-side authentication, account verification, and role permissions.
  */
 export function LoginPage() {
   const { login, pendingAction, setActiveTab } = useSimulation();
@@ -21,7 +18,7 @@ export function LoginPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -31,15 +28,16 @@ export function LoginPage() {
     }
 
     setIsSubmitting(true);
-    // Slight simulated network verification delay for realism
-    setTimeout(() => {
-      const result = login(email, password);
-      setIsSubmitting(false);
-
+    try {
+      const result = await login(email, password);
       if (!result.success) {
         setErrorMsg(result.error || 'Authentication failed. Please verify credentials.');
       }
-    }, 300);
+    } catch {
+      setErrorMsg('Network error. Unable to connect to the authentication server.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -89,7 +87,7 @@ export function LoginPage() {
                 id="driver-email"
                 type="email"
                 className="form-input"
-                placeholder="operator@amburoute.demo"
+                placeholder="driver@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="username"
@@ -125,14 +123,14 @@ export function LoginPage() {
                 iconPosition="right"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? 'Authenticating Driver...' : 'Sign In to Driver Cockpit'}
+                {isSubmitting ? 'Authenticating with Server...' : 'Sign In to Driver Cockpit'}
               </Button>
             </div>
           </form>
 
           <div className="login-footer-notice">
             <p>
-              * Prototype UI Access Control: Valid driver credentials are required to start emergency trips and access navigation controls.
+              * Driver Cockpit Access: Valid ambulance driver credentials verified by the backend server are required to start emergency trips and access navigation controls.
             </p>
             <div className="login-cancel-action">
               <button

@@ -3,6 +3,7 @@ import { useSimulation } from '../context/useSimulation.js';
 import { TrafficReportForm } from '../components/traffic/TrafficReportForm.jsx';
 import { TrafficFeed } from '../components/traffic/TrafficFeed.jsx';
 import { SimulationMap } from '../components/map/SimulationMap.jsx';
+import { ErrorBoundary } from '../components/common/ErrorBoundary.jsx';
 import { Badge } from '../components/common/Badge.jsx';
 import { Card } from '../components/common/Card.jsx';
 import { AlertTriangleIcon, OctagonAlertIcon, CheckCircleIcon } from '../components/common/Icons.jsx';
@@ -29,7 +30,7 @@ export function TrafficReportPage() {
       <div className="incident-ops-header">
         <div>
           <div className="ops-badge-row">
-            <Badge variant="warning" size="sm">PATNA PILOT NETWORK</Badge>
+            <Badge variant="warning" size="sm">LIVE COMMUNITY OBSERVATIONS</Badge>
             <Badge variant="neutral" size="sm">INCIDENT MANAGEMENT</Badge>
           </div>
           <h1 className="incident-ops-title">Community Traffic Intelligence & Road Hazards</h1>
@@ -60,7 +61,9 @@ export function TrafficReportPage() {
         {/* Left Column: Geographic Map with Selectable Hazards */}
         <section className="incident-map-col" aria-label="Incident Map Overview">
           <div className="incident-map-wrapper">
-            <SimulationMap />
+            <ErrorBoundary>
+              <SimulationMap />
+            </ErrorBoundary>
           </div>
 
           {/* Selected Incident Inspector Card */}
@@ -102,7 +105,11 @@ export function TrafficReportPage() {
                   >
                     {selectedIncident.corroborationStatus || (selectedIncident.verifiedCount > 1 ? 'CORROBORATED' : 'UNVERIFIED REPORT')}
                   </Badge>
-                  <Badge variant="neutral" size="sm">DEMO DATA</Badge>
+                  {selectedIncident.isDemo ? (
+                    <Badge variant="neutral" size="sm">DEMO BASELINE</Badge>
+                  ) : (
+                    <Badge variant="clear" size="sm">LIVE REPORT</Badge>
+                  )}
                 </div>
                 <div className="inspector-title-row">
                   <span className="inspector-road-name">{selectedIncident.roadSegment}</span>
@@ -158,8 +165,8 @@ export function TrafficReportPage() {
           {/* Filterable Incident Stream */}
           <div className="feed-container-card">
             <div className="feed-container-header">
-              <h3 className="feed-container-title">Patna Corridor Incident Stream</h3>
-              <Badge variant="neutral" size="sm">Real-Time</Badge>
+              <h3 className="feed-container-title">Active Traffic Incident Stream</h3>
+              <Badge variant="clear" size="sm">Real-Time</Badge>
             </div>
             <TrafficFeed />
           </div>

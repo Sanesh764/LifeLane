@@ -136,11 +136,11 @@ export function Header() {
               <div className="header-driver-profile">
                 <div
                   className="driver-profile-pill"
-                  title={`Logged in: ${currentUser.driverName} (${currentUser.vehicleNumber})`}
+                  title={`Logged in: ${currentUser?.driverName || 'Driver'} (${currentUser?.vehicleNumber || ''})`}
                 >
                   <ShieldCheckIcon size={14} className="text-mint" />
-                  <span className="driver-name">{currentUser.driverName}</span>
-                  <span className="driver-badge-num">{currentUser.vehicleNumber}</span>
+                  <span className="driver-name">{currentUser?.driverName || 'Driver'}</span>
+                  <span className="driver-badge-num">{currentUser?.vehicleNumber || ''}</span>
                 </div>
                 <button
                   type="button"
@@ -272,9 +272,9 @@ export function Header() {
               <div className="mobile-driver-meta">
                 <ShieldCheckIcon size={16} className="text-mint" />
                 <div className="mobile-driver-info">
-                  <div className="mobile-driver-name">{currentUser.driverName}</div>
+                  <div className="mobile-driver-name">{currentUser?.driverName || 'Driver'}</div>
                   <div className="mobile-driver-badge">
-                    {currentUser.callSign} · {currentUser.vehicleNumber}
+                    {currentUser?.callSign || ''} · {currentUser?.vehicleNumber || ''}
                   </div>
                 </div>
               </div>

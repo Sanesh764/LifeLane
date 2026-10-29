@@ -73,16 +73,24 @@ export function TripControls() {
           <select
             id="dest-select"
             className="form-select form-select--ops"
-            value={selectedDestination.id}
+            value={selectedDestination?.id || ''}
             onChange={(e) => {
               const d = DEMO_DESTINATIONS.find((item) => item.id === e.target.value);
               if (d) setSelectedDestination(d);
             }}
             disabled={isTripActive}
           >
+            {!selectedDestination && (
+              <option value="" disabled>Select Target Hospital on Start Emergency</option>
+            )}
+            {selectedDestination && !DEMO_DESTINATIONS.some((d) => d.id === selectedDestination.id) && (
+              <option value={selectedDestination.id}>
+                {selectedDestination.shortName || selectedDestination.name} ({selectedDestination.distanceKm || 'Discovered'} km)
+              </option>
+            )}
             {DEMO_DESTINATIONS.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.shortName || d.name} ({d.distanceKm} km · ~{d.baseEtaMins} min)
+                {d.shortName || d.name} ({d.distanceKm} km · ~{d.baseEtaMins} min) [Demo]
               </option>
             ))}
           </select>

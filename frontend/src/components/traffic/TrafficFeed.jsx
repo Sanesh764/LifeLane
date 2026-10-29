@@ -121,7 +121,11 @@ export function TrafficFeed({ onSelectReport }) {
                       >
                         {report.corroborationStatus || (report.verifiedCount > 1 ? 'CORROBORATED' : 'UNVERIFIED REPORT')}
                       </Badge>
-                      <Badge variant="neutral" size="xs">DEMO DATA</Badge>
+                      {report.isDemo ? (
+                        <Badge variant="neutral" size="xs">DEMO</Badge>
+                      ) : (
+                        <Badge variant="clear" size="xs">LIVE</Badge>
+                      )}
                     </div>
                   </div>
 

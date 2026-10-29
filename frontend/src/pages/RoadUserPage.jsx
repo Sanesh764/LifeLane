@@ -14,8 +14,11 @@ import { Badge } from '../components/common/Badge.jsx';
  * and 500m proximity targeting.
  */
 export function RoadUserPage() {
-  const { userCurrentRoad, tripStatus } = useSimulation();
+  const { userCurrentRoad, userGpsLocation, tripStatus } = useSimulation();
   const isTripActive = tripStatus === 'ACTIVE';
+
+  const hasLocation = Boolean(userCurrentRoad || (userGpsLocation?.lat && userGpsLocation?.lng));
+  const locationDisplay = userCurrentRoad || (userGpsLocation?.lat ? `${userGpsLocation.lat.toFixed(5)}°N, ${userGpsLocation.lng.toFixed(5)}°E` : 'Location Not Shared');
 
   return (
     <div className="road-user-page">
@@ -23,20 +26,27 @@ export function RoadUserPage() {
       <div className="page-header-row">
         <div>
           <div className="page-tag-row">
-            <Badge variant="warning" size="sm">DEMO SIMULATION</Badge>
+            <Badge variant={hasLocation ? 'clear' : 'warning'} size="sm">
+              {hasLocation ? 'PROXIMITY ARMED' : 'LOCATION REQUIRED'}
+            </Badge>
             <Badge variant={isTripActive ? 'critical' : 'neutral'} size="sm">
-              {isTripActive ? 'PATNA EMERGENCY DISPATCH ACTIVE' : 'CORRIDOR QUIET'}
+              {isTripActive ? 'EMERGENCY MISSION ACTIVE' : 'FLEET STANDBY'}
             </Badge>
           </div>
           <h1 className="page-main-heading">Road User Transit Alerts</h1>
           <p className="page-subheading">
-            Receive timely, route-aware notifications when an emergency vehicle approaches your 500m sector.
+            Receive timely, route-aware notifications when an emergency vehicle approaches your 2–5 km radius.
           </p>
         </div>
 
-        <div className="user-location-chip" title="Simulated Location">
+        <div
+          className="user-location-chip"
+          title={hasLocation ? 'Verified User Location' : 'Please enable location sharing below'}
+        >
           <span className="location-chip-label">YOUR LOCATION:</span>
-          <span className="location-chip-value">{userCurrentRoad}</span>
+          <span className="location-chip-value" style={{ color: hasLocation ? '#0F766E' : '#94a3b8' }}>
+            {locationDisplay}
+          </span>
         </div>
       </div>
 

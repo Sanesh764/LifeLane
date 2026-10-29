@@ -142,7 +142,12 @@ export const PATNA_LOCATIONS = {
  */
 export function getCoordinatesForRoad(roadName) {
   if (!roadName) return PATNA_LOCATIONS.pmch.coordinates;
-  const name = roadName.toLowerCase();
+  const str =
+    typeof roadName === 'string'
+      ? roadName
+      : roadName?.displayName || roadName?.road || roadName?.name || '';
+  if (!str) return PATNA_LOCATIONS.pmch.coordinates;
+  const name = str.toLowerCase();
 
   if (name.includes('bailey')) return PATNA_LOCATIONS.baileyRoad.coordinates;
   if (name.includes('boring')) return PATNA_LOCATIONS.boringRoadTurnoff.coordinates;

@@ -25,6 +25,10 @@ import {
  */
 export function DriverNavigationHUD() {
   const {
+    activeTrip,
+    isTestModeLocation,
+    driverLiveGps,
+    lastServerUpdate,
     currentRoute,
     currentSegmentIdx,
     selectedDestination,
@@ -68,7 +72,7 @@ export function DriverNavigationHUD() {
             <span>CURRENT: <strong>{currentSegment.roadName}</strong></span>
           </div>
           <div className="hud-next-road-title">
-            {nextSegment ? nextSegment.roadName : `Entering ${selectedDestination.shortName || selectedDestination.name}`}
+            {nextSegment ? nextSegment.roadName : `Entering ${selectedDestination?.shortName || selectedDestination?.name || 'Trauma Center'}`}
           </div>
           <div className="hud-maneuver-hint">
             {nextSegment ? 'Continue straight along emergency corridor' : 'Approaching emergency trauma bay entrance'}
@@ -78,9 +82,27 @@ export function DriverNavigationHUD() {
 
       {/* Block 2: Destination, Remaining Distance & ETA */}
       <div className="hud-telemetry-block">
-        <div className="hud-dest-row">
-          <MapPinIcon size={14} className="text-teal" />
-          <strong className="hud-dest-name">{selectedDestination.shortName || selectedDestination.name}</strong>
+        <div className="hud-dest-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <MapPinIcon size={14} className="text-teal" />
+            <strong className="hud-dest-name">{selectedDestination?.shortName || selectedDestination?.name || 'Trauma Center'}</strong>
+          </div>
+          {activeTrip && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Badge variant="clear" size="xs">
+                TRIP #{String(activeTrip.id || activeTrip._id).substring(0, 8).toUpperCase()}
+              </Badge>
+              {lastServerUpdate.status === 'SYNCING' && (
+                <Badge variant="warning" size="xs">SYNCING GPS...</Badge>
+              )}
+              {lastServerUpdate.status === 'SYNCED' && (
+                <Badge variant="clear" size="xs">GPS SYNCED</Badge>
+              )}
+              {isTestModeLocation && (
+                <Badge variant="warning" size="xs">[TEST MODE]</Badge>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="hud-metrics-strip">

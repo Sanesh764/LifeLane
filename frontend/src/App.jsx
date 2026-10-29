@@ -10,6 +10,7 @@ import { LoginPage } from './pages/LoginPage.jsx';
 import { RoadUserPage } from './pages/RoadUserPage.jsx';
 import { TrafficReportPage } from './pages/TrafficReportPage.jsx';
 import { ToastContainer } from './components/common/Toast.jsx';
+import { ErrorBoundary } from './components/common/ErrorBoundary.jsx';
 
 function AppContent() {
   const {
@@ -17,6 +18,7 @@ function AppContent() {
     setActiveTab,
     setDriverSubTab,
     isAuthenticated,
+    isAuthLoading,
     toasts,
     dismissToast,
   } = useSimulation();
@@ -30,6 +32,12 @@ function AppContent() {
       const subTab = parts[1];
 
       if (mainTab === 'driver') {
+        // While checking backend session, avoid prematurely redirecting to login
+        if (isAuthLoading) {
+          setActiveTab('driver');
+          return;
+        }
+
         if (!isAuthenticated) {
           setActiveTab('login');
           window.location.hash = 'login';
@@ -56,18 +64,31 @@ function AppContent() {
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [setActiveTab, setDriverSubTab, isAuthenticated]);
+  }, [setActiveTab, setDriverSubTab, isAuthenticated, isAuthLoading]);
 
   return (
     <div className="app-shell">
       <Header />
       <main className="app-main">
         <div className="app-main__container">
-          {activeTab === 'overview' && <OverviewPage />}
-          {activeTab === 'driver' && (isAuthenticated ? <DriverPage /> : <LoginPage />)}
-          {activeTab === 'login' && <LoginPage />}
-          {activeTab === 'alerts' && <RoadUserPage />}
-          {activeTab === 'report' && <TrafficReportPage />}
+          <ErrorBoundary>
+            {activeTab === 'overview' && <OverviewPage />}
+            {activeTab === 'driver' && (
+              isAuthLoading ? (
+                <div className="auth-loading-container" role="status" aria-live="polite">
+                  <div className="auth-loading-spinner" />
+                  <p className="auth-loading-text">Verifying driver authorization...</p>
+                </div>
+              ) : isAuthenticated ? (
+                <DriverPage />
+              ) : (
+                <LoginPage />
+              )
+            )}
+            {activeTab === 'login' && <LoginPage />}
+            {activeTab === 'alerts' && <RoadUserPage />}
+            {activeTab === 'report' && <TrafficReportPage />}
+          </ErrorBoundary>
         </div>
       </main>
       <Footer />

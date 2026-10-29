@@ -66,7 +66,7 @@ export function ActiveTripPanel() {
               {isTripActive ? currentSegment.roadName : 'Unit at Depot / Inactive'}
             </div>
             <div className="waypoint-target">
-              Base: {selectedDestination.shortName || selectedDestination.name}
+              Base: {selectedDestination?.shortName || selectedDestination?.name || 'Awaiting Mission Dispatch'}
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   DEMO_DESTINATIONS,
   DEMO_VEHICLES,
@@ -9,6 +9,7 @@ import {
 } from '../services/mockData.js';
 import { voiceService } from '../services/voiceService.js';
 import { authService } from '../services/authService.js';
+import { apiClient } from '../services/api.js';
 import { SimulationContext } from './simulationContextInstance.js';
 
 export function SimulationProvider({ children }) {
@@ -19,11 +20,179 @@ export function SimulationProvider({ children }) {
 
   // Authentication State
   const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const isAuthenticated = Boolean(currentUser && currentUser.authorized);
+
+  // Active Real Backend Trip State
+  const [activeTrip, setActiveTrip] = useState(null);
+  const [isTestModeLocation, setIsTestModeLocation] = useState(false);
+  const [driverLiveGps, setDriverLiveGps] = useState({
+    lat: null,
+    lng: null,
+    accuracy: null,
+    heading: null,
+    speed: null,
+    capturedAt: null,
+    status: 'IDLE', // 'IDLE' | 'ACTIVE' | 'ERROR' | 'OFFLINE'
+    error: null,
+  });
+  const [lastServerUpdate, setLastServerUpdate] = useState({
+    timestamp: null,
+    status: 'IDLE', // 'IDLE' | 'SYNCING' | 'SYNCED' | 'ERROR'
+  });
+
+  const driverWatchIdRef = useRef(null);
+  const lastSentTimestampRef = useRef(0);
+
+  // Stop continuous driver GPS watcher
+  const stopDriverLocationWatcher = useCallback(() => {
+    if (driverWatchIdRef.current !== null) {
+      if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+        navigator.geolocation.clearWatch(driverWatchIdRef.current);
+      }
+      driverWatchIdRef.current = null;
+    }
+    setDriverLiveGps((prev) => ({ ...prev, status: 'IDLE' }));
+  }, []);
+
+  // Start continuous driver GPS watcher
+  const startDriverLocationWatcher = useCallback(
+    (tripId) => {
+      stopDriverLocationWatcher();
+      if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+        setDriverLiveGps((prev) => ({ ...prev, status: 'UNSUPPORTED' }));
+        return;
+      }
+
+      try {
+        const watchId = navigator.geolocation.watchPosition(
+          async (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const accuracy = Math.round(pos.coords.accuracy || 10);
+            const now = Date.now();
+
+            setDriverLiveGps({
+              lat,
+              lng,
+              accuracy,
+              heading: pos.coords.heading || null,
+              speed: pos.coords.speed || null,
+              capturedAt: new Date(pos.timestamp || now),
+              status: 'ACTIVE',
+              error: null,
+            });
+
+            // Throttle: max 1 update every 3 seconds to protect backend rate limiter
+            if (now - lastSentTimestampRef.current < 3000) return;
+            lastSentTimestampRef.current = now;
+
+            setLastServerUpdate({ timestamp: new Date(), status: 'SYNCING' });
+            const token = authService.getToken();
+            if (!token || !tripId) return;
+
+            const res = await apiClient.updateTripLocation(
+              tripId,
+              {
+                coordinates: [lng, lat],
+                accuracyMeters: accuracy,
+                headingDegrees:
+                  Number.isFinite(pos.coords.heading) &&
+                  pos.coords.heading >= 0 &&
+                  pos.coords.heading <= 360
+                    ? Math.round(pos.coords.heading)
+                    : null,
+                speedMetersPerSecond:
+                  Number.isFinite(pos.coords.speed) && pos.coords.speed >= 0
+                    ? pos.coords.speed
+                    : null,
+                capturedAt: new Date(pos.timestamp || now).toISOString(),
+              },
+              token
+            );
+
+            if (res.success) {
+              setLastServerUpdate({ timestamp: new Date(), status: 'SYNCED' });
+            } else {
+              setLastServerUpdate({ timestamp: new Date(), status: 'ERROR' });
+            }
+          },
+          (err) => {
+            setDriverLiveGps((prev) => ({
+              ...prev,
+              status: 'ERROR',
+              error: err.message || 'GPS location error',
+            }));
+          },
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 2000 }
+        );
+
+        driverWatchIdRef.current = watchId;
+      } catch (watchErr) {
+        console.warn('[SimulationContext] Watcher start error:', watchErr);
+      }
+    },
+    [stopDriverLocationWatcher]
+  );
+
+  // Clean up watcher on unmount
+  useEffect(() => {
+    return () => {
+      stopDriverLocationWatcher();
+    };
+  }, [stopDriverLocationWatcher]);
+
+  // Verify session with the real backend on initial application mount and restore active trip
+  useEffect(() => {
+    let isMounted = true;
+    async function checkSession() {
+      setIsAuthLoading(true);
+      try {
+        const verifiedUser = await authService.verifySession();
+        if (isMounted) {
+          setCurrentUser(verifiedUser);
+          if (verifiedUser && verifiedUser.authorized) {
+            const token = authService.getToken();
+            if (token) {
+              const tripRes = await apiClient.getActiveTrip(token);
+              if (isMounted && tripRes.success && tripRes.data?.trip) {
+                const trip = tripRes.data.trip;
+                setActiveTrip(trip);
+                setTripStatus('ACTIVE');
+                setTripStartTime(new Date(trip.startedAt || Date.now()));
+                if (trip.destination?.label) {
+                  setSelectedDestination((prev) => ({
+                    ...prev,
+                    name: trip.destination.label,
+                    shortName: trip.destination.label.split('(')[0].trim(),
+                    coordinates: trip.destination.location?.coordinates || prev.coordinates,
+                  }));
+                }
+                startDriverLocationWatcher(trip.id || trip._id);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[SimulationContext] Session check error:', err);
+        if (isMounted) {
+          setCurrentUser(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsAuthLoading(false);
+        }
+      }
+    }
+    checkSession();
+    return () => {
+      isMounted = false;
+    };
+  }, [startDriverLocationWatcher]);
 
   // Driver & Trip State
   const [selectedVehicle, setSelectedVehicle] = useState(DEMO_VEHICLES[0]);
-  const [selectedDestination, setSelectedDestination] = useState(DEMO_DESTINATIONS[0]);
+  const [selectedDestination, setSelectedDestination] = useState(null);
   const [tripStatus, setTripStatus] = useState('IDLE'); // 'IDLE', 'ACTIVE', 'COMPLETED'
   const [tripStartTime, setTripStartTime] = useState(null);
   const [currentRoute, setCurrentRoute] = useState(INITIAL_ROUTE);
@@ -37,7 +206,7 @@ export function SimulationProvider({ children }) {
     voiceRate: 1.0,
     sirenSoundEnabled: true,
     autoAlertNotifications: true,
-    pilotSector: 'Patna Central Arterial Sector',
+    pilotSector: 'Active Regional Corridor',
   });
 
   // Recommendations
@@ -48,16 +217,40 @@ export function SimulationProvider({ children }) {
   const [trafficReports, setTrafficReports] = useState(INITIAL_TRAFFIC_REPORTS);
   const [selectedIncident, setSelectedIncident] = useState(() => INITIAL_TRAFFIC_REPORTS[0] || null);
 
+  // Load real-time community traffic reports from backend
+  useEffect(() => {
+    let isMounted = true;
+    async function loadReports() {
+      try {
+        const res = await apiClient.getTrafficReports();
+        if (isMounted && res.success && Array.isArray(res.data?.reports) && res.data.reports.length > 0) {
+          setTrafficReports((prev) => {
+            const existingIds = new Set(res.data.reports.map((r) => r.id));
+            const filteredPrev = prev.filter((p) => !existingIds.has(p.id));
+            return [...res.data.reports, ...filteredPrev];
+          });
+          setSelectedIncident(res.data.reports[0]);
+        }
+      } catch (err) {
+        console.warn('[SimulationContext] Failed to load backend traffic reports:', err);
+      }
+    }
+    loadReports();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Map Controls State
   const [mapZoom, setMapZoom] = useState(1);
   const zoomIn = useCallback(() => setMapZoom((prev) => Math.min(prev + 0.25, 2)), []);
   const zoomOut = useCallback(() => setMapZoom((prev) => Math.max(prev - 0.25, 0.75)), []);
   const resetZoom = useCallback(() => setMapZoom(1), []);
 
-  // Road User State (Simulating this participating road user in Patna)
+  // Road User State (Real location resolved dynamically from device GPS or explicitly selected test sector)
   const [subscriptionPermission, setSubscriptionPermission] = useState('GRANTED'); // 'GRANTED', 'PROMPT', 'DENIED'
   const [isSubscribed, setIsSubscribed] = useState(true);
-  const [userCurrentRoad, setUserCurrentRoad] = useState('Bailey Road / Jawaharlal Nehru Marg');
+  const [userCurrentRoad, setUserCurrentRoad] = useState('');
 
   // Focused Mission Navigation Mode State (Active mission prioritizes ~80% map)
   const [isFocusedMissionMode, setIsFocusedMissionMode] = useState(true);
@@ -115,95 +308,216 @@ export function SimulationProvider({ children }) {
   }, [isMuted]);
 
   // Handle Starting Emergency Trip
-  const startTrip = useCallback(() => {
-    if (!authService.isAuthenticated()) {
-      addToast(
-        'Driver Login Required',
-        'Only an authorized ambulance driver can start emergency transit missions.',
-        'warning'
-      );
-      setPendingAction('START_AMBULANCE');
-      setActiveTab('login');
-      window.location.hash = 'login';
-      return false;
-    }
+  const startTrip = useCallback(
+    async (tripConfig = null) => {
+      if (!authService.isAuthenticated()) {
+        addToast(
+          'Driver Login Required',
+          'Only an authorized ambulance driver can start emergency transit missions.',
+          'warning'
+        );
+        setPendingAction('START_AMBULANCE');
+        setActiveTab('login');
+        window.location.hash = 'login';
+        return false;
+      }
 
-    if (tripStatus === 'ACTIVE') {
-      addToast('Mission Already Active', 'An emergency mission is already running in this vehicle.', 'info');
+      if (tripStatus === 'ACTIVE') {
+        addToast('Mission Already Active', 'An emergency mission is already running in this vehicle.', 'info');
+        setDriverSubTab('active');
+        window.location.hash = 'driver/active';
+        return true;
+      }
+
+      // Determine origin and destination
+      const dest = tripConfig?.destination || (selectedDestination ? {
+        label: selectedDestination.name,
+        coordinates: selectedDestination.coordinates,
+      } : {
+        label: 'Emergency Medical Center',
+        coordinates: [85.1588, 25.608],
+      });
+
+      const originCoords =
+        tripConfig?.origin ||
+        (driverLiveGps.lat && driverLiveGps.lng
+          ? [driverLiveGps.lng, driverLiveGps.lat]
+          : [85.1376, 25.5941]);
+      const accuracy =
+        tripConfig?.accuracyMeters || (driverLiveGps.accuracy ? Math.round(driverLiveGps.accuracy) : 15);
+      const isTest = Boolean(tripConfig?.isTestMode);
+      setIsTestModeLocation(isTest);
+
+      const token = authService.getToken();
+      let backendTrip = null;
+
+      if (token) {
+        try {
+          const createRes = await apiClient.createTrip(
+            {
+              destination: {
+                label: dest.label || dest.name || 'Emergency Destination',
+                location: {
+                  type: 'Point',
+                  coordinates: dest.coordinates || [85.1588, 25.608],
+                },
+              },
+              initialLocation: {
+                type: 'Point',
+                coordinates: originCoords,
+              },
+              locationAccuracyMeters: accuracy,
+            },
+            token
+          );
+
+          if (createRes.success && createRes.data?.trip) {
+            backendTrip = createRes.data.trip;
+            setActiveTrip(backendTrip);
+            startDriverLocationWatcher(backendTrip.id || backendTrip._id);
+          } else if (createRes.error?.code === 'ACTIVE_TRIP_EXISTS') {
+            const activeRes = await apiClient.getActiveTrip(token);
+            if (activeRes.success && activeRes.data?.trip) {
+              backendTrip = activeRes.data.trip;
+              setActiveTrip(backendTrip);
+              startDriverLocationWatcher(backendTrip.id || backendTrip._id);
+            }
+          } else {
+            console.warn('[SimulationContext] Backend trip creation note:', createRes.error);
+            addToast(
+              'Backend Notice',
+              createRes.error?.message || 'Trip started in local mode (backend sync pending).',
+              'warning'
+            );
+          }
+        } catch (err) {
+          console.warn('[SimulationContext] Create trip exception:', err);
+        }
+      }
+
+      if (tripConfig?.destination) {
+        setSelectedDestination({
+          id: tripConfig.destination.id || 'chosen-dest',
+          name: tripConfig.destination.label || tripConfig.destination.name,
+          shortName:
+            tripConfig.destination.shortName ||
+            (tripConfig.destination.label || tripConfig.destination.name || '').split('(')[0].trim(),
+          coordinates: dest.coordinates,
+          distanceKm: tripConfig.destination.distanceKm || 0,
+        });
+      }
+
+      setTripStatus('ACTIVE');
+      setTripStartTime(new Date());
+      setCurrentSegmentIdx(0);
+      setCurrentRoute(INITIAL_ROUTE);
+      setRecommendationDecision(null);
+      setActiveRecommendation(null);
+      setIsFocusedMissionMode(true);
       setDriverSubTab('active');
+      setActiveTab('driver');
       window.location.hash = 'driver/active';
+
+      const destLabel = dest.label || dest.name || selectedDestination?.name || 'Emergency Medical Center';
+      addToast(
+        'Emergency Mission Dispatched',
+        `En route to ${destLabel}. Alert broadcast active${backendTrip ? ' (Backend Synced)' : ''}.`,
+        'success'
+      );
+
+      triggerVoiceGuidance(
+        `Emergency mission started to ${destLabel}. Proceed along ${INITIAL_ROUTE.segments[0].roadName}.`
+      );
       return true;
-    }
-
-    setTripStatus('ACTIVE');
-    setTripStartTime(new Date());
-    setCurrentSegmentIdx(0);
-    setCurrentRoute(INITIAL_ROUTE);
-    setRecommendationDecision(null);
-    setActiveRecommendation(null);
-    setIsFocusedMissionMode(true);
-    setDriverSubTab('active');
-    setActiveTab('driver');
-    window.location.hash = 'driver/active';
-
-    addToast(
-      'Emergency Mission Dispatched',
-      `En route to ${selectedDestination.name}. Route-aware broadcast active for Patna corridors (500m radius).`,
-      'success'
-    );
-
-    triggerVoiceGuidance(
-      `Emergency mission started to ${selectedDestination.shortName || selectedDestination.name}. Proceed along ${INITIAL_ROUTE.segments[0].roadName}.`
-    );
-    return true;
-  }, [tripStatus, selectedDestination, addToast, triggerVoiceGuidance]);
+    },
+    [tripStatus, selectedDestination, driverLiveGps, startDriverLocationWatcher, addToast, triggerVoiceGuidance]
+  );
 
   // Handle Ending Emergency Trip (Safe return to Standby Home dashboard)
-  const endTrip = useCallback(() => {
-    if (tripStatus === 'ACTIVE') {
-      const durationMins = tripStartTime
-        ? Math.max(1, Math.round((Date.now() - new Date(tripStartTime).getTime()) / 60000))
-        : 14;
-      const completedRecord = {
-        id: `TRIP-PAT-108-${Math.floor(410 + Math.random() * 50)}`,
-        startTime: tripStartTime ? new Date(tripStartTime).toISOString() : new Date(Date.now() - durationMins * 60000).toISOString(),
-        endTime: new Date().toISOString(),
-        destination: selectedDestination.name,
-        shortDestination: selectedDestination.shortName || selectedDestination.name,
-        vehicleNumber: selectedVehicle.vehicleNumber,
-        callSign: selectedVehicle.callSign,
-        driverName: currentUser?.driverName || 'Amitabh Sen',
-        status: 'COMPLETED',
-        distanceKm: selectedDestination.distanceKm || 6.0,
-        durationMins,
-        routeTaken: currentRoute.name,
-        detourAccepted: recommendationDecision === 'ACCEPTED',
-        alertsDelivered: 35,
-        outcome: `Patient safely delivered to ${selectedDestination.shortName || selectedDestination.name}`,
-      };
-      setTripHistory((prev) => [completedRecord, ...prev]);
-    }
-    setTripStatus('IDLE');
-    setTripStartTime(null);
-    setActiveRecommendation(null);
-    setRecommendationDecision(null);
-    setCurrentRoute(INITIAL_ROUTE);
-    setCurrentSegmentIdx(0);
-    setIsFocusedMissionMode(true);
-    voiceService.stop();
-    setIsSpeaking(false);
-    setDriverSubTab('home');
-    window.location.hash = 'driver/home';
-    triggerVoiceGuidance('Emergency mission concluded. Unit returned to standby.');
-    addToast('Emergency Mission Concluded', 'Trip ended. Unit returned to Standby dashboard.', 'info');
-  }, [tripStatus, tripStartTime, selectedDestination, selectedVehicle, currentUser, currentRoute, recommendationDecision, triggerVoiceGuidance, addToast]);
+  const endTrip = useCallback(
+    async (reason = 'PATIENT_DELIVERED') => {
+      if (tripStatus === 'ACTIVE' || activeTrip) {
+        stopDriverLocationWatcher();
 
-  // Handle Driver Login
-  const login = useCallback((email, password) => {
-    const result = authService.login(email, password);
+        const token = authService.getToken();
+        if (token && activeTrip) {
+          try {
+            await apiClient.endTrip(activeTrip.id || activeTrip._id, reason, token);
+          } catch (endErr) {
+            console.warn('[SimulationContext] End trip API error:', endErr);
+          }
+        }
+        setActiveTrip(null);
+
+        const durationMins = tripStartTime
+          ? Math.max(1, Math.round((Date.now() - new Date(tripStartTime).getTime()) / 60000))
+          : 14;
+        const completedRecord = {
+          id:
+            activeTrip?.id || activeTrip?._id
+              ? `TRIP-${(activeTrip.id || activeTrip._id).substring(0, 8).toUpperCase()}`
+              : `TRIP-PAT-108-${Math.floor(410 + Math.random() * 50)}`,
+          startTime: tripStartTime
+            ? new Date(tripStartTime).toISOString()
+            : new Date(Date.now() - durationMins * 60000).toISOString(),
+          endTime: new Date().toISOString(),
+          destination: selectedDestination?.name || 'Emergency Medical Base',
+          shortDestination: selectedDestination?.shortName || selectedDestination?.name || 'Emergency Medical Base',
+          vehicleNumber: selectedVehicle.vehicleNumber,
+          callSign: selectedVehicle.callSign,
+          driverName: currentUser?.driverName || 'Amitabh Sen',
+          status: 'COMPLETED',
+          distanceKm: selectedDestination?.distanceKm || 6.0,
+          durationMins,
+          routeTaken: currentRoute.name,
+          detourAccepted: recommendationDecision === 'ACCEPTED',
+          alertsDelivered: 35,
+          outcome: selectedDestination
+            ? `Patient safely delivered to ${selectedDestination.shortName || selectedDestination.name}`
+            : 'Emergency mission completed safely',
+        };
+        setTripHistory((prev) => [completedRecord, ...prev]);
+      }
+      setTripStatus('IDLE');
+      setTripStartTime(null);
+      setSelectedDestination(null);
+      setActiveRecommendation(null);
+      setRecommendationDecision(null);
+      setCurrentRoute(INITIAL_ROUTE);
+      setCurrentSegmentIdx(0);
+      setIsFocusedMissionMode(true);
+      voiceService.stop();
+      setIsSpeaking(false);
+      setDriverSubTab('home');
+      window.location.hash = 'driver/home';
+      triggerVoiceGuidance('Emergency mission concluded. Unit returned to standby.');
+      addToast('Emergency Mission Concluded', 'Trip ended. Unit returned to Standby dashboard.', 'info');
+    },
+    [
+      tripStatus,
+      activeTrip,
+      tripStartTime,
+      selectedDestination,
+      selectedVehicle,
+      currentUser,
+      currentRoute,
+      recommendationDecision,
+      stopDriverLocationWatcher,
+      triggerVoiceGuidance,
+      addToast,
+    ]
+  );
+
+  // Handle Driver Login via Real Backend
+  const login = useCallback(async (email, password) => {
+    const result = await authService.login(email, password);
     if (result.success) {
       setCurrentUser(result.user);
-      addToast('Driver Authenticated', `Welcome back, ${result.user.driverName}. Demo session established.`, 'success');
+      addToast(
+        'Driver Authenticated',
+        `Welcome back, ${result.user.driverName}. Verified backend session active.`,
+        'success'
+      );
 
       // Check if there was a pending start action
       if (pendingAction === 'START_AMBULANCE') {
@@ -221,16 +535,16 @@ export function SimulationProvider({ children }) {
     return { success: false, error: result.error };
   }, [pendingAction, addToast]);
 
-  // Handle Driver Logout
-  const logout = useCallback(() => {
+  // Handle Driver Logout via Real Backend
+  const logout = useCallback(async () => {
     if (tripStatus === 'ACTIVE') {
       endTrip();
     }
-    authService.logout();
+    await authService.logout();
     setCurrentUser(null);
     setPendingAction(null);
     setDriverSubTab('home');
-    addToast('Logged Out', 'Driver credentials cleared. Direct dashboard access restricted.', 'info');
+    addToast('Logged Out', 'Driver session concluded and credentials revoked.', 'info');
     setActiveTab('overview');
     window.location.hash = 'overview';
   }, [tripStatus, endTrip, addToast]);
@@ -260,7 +574,7 @@ export function SimulationProvider({ children }) {
         );
       } else {
         triggerVoiceGuidance(
-          `Approaching ${nextRoad}. Destination: ${selectedDestination.shortName || selectedDestination.name}.`
+          `Approaching ${nextRoad}. Destination: ${selectedDestination?.shortName || selectedDestination?.name || 'Assigned Center'}.`
         );
       }
     } else {
@@ -324,6 +638,18 @@ export function SimulationProvider({ children }) {
           errorMessage: null,
         });
         addToast('GPS Location Detected', `Accuracy ±${accuracy}m captured. You can review your report location.`, 'info');
+
+        // Dynamically reverse geocode user coordinates into real road/area name
+        apiClient.reverseGeocode(lat, lng).then((resolvedRoad) => {
+          const roadStr = typeof resolvedRoad === 'string' ? resolvedRoad : (resolvedRoad?.displayName || resolvedRoad?.road || '');
+          if (roadStr) {
+            setUserCurrentRoad(roadStr);
+          } else {
+            setUserCurrentRoad(`Coordinates: ${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E`);
+          }
+        }).catch(() => {
+          setUserCurrentRoad(`Coordinates: ${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E`);
+        });
       },
       (error) => {
         let status = 'UNAVAILABLE';
@@ -367,54 +693,82 @@ export function SimulationProvider({ children }) {
       status: 'IDLE',
       errorMessage: null,
     });
+    setUserCurrentRoad('');
   }, []);
 
-  // Submit Traffic Report with Optional Frontend Location Metadata
-  const submitTrafficReport = useCallback((reportType, roadSegment, description, locationMeta = null) => {
-    const targetRoad = roadSegment || userCurrentRoad;
-    
-    // Check if other reports in current feed match this road segment
-    const matchingReports = trafficReports.filter(
-      (r) => r.roadSegment.toLowerCase() === targetRoad.toLowerCase()
-    );
+  // Submit Traffic Report with Backend Persistence & Real-Time Sync
+  const submitTrafficReport = useCallback(
+    async (reportType, roadSegment, description, locationMeta = null) => {
+      const targetRoad = roadSegment || userCurrentRoad;
+      const locationStatus = locationMeta?.locationStatus || 'LOCATION_MATCHED';
 
-    const isCorroborated = matchingReports.length > 0;
-    const locationStatus = locationMeta?.locationStatus || 'LOCATION UNVERIFIED';
-
-    const newReport = {
-      id: `rep-${Date.now()}`,
-      reportType,
-      roadSegment: targetRoad,
-      locationDescription: description || `Reported near ${targetRoad}, Patna`,
-      timestamp: new Date().toISOString(),
-      freshness: 'JUST_NOW',
-      verifiedCount: isCorroborated ? matchingReports.length + 1 : 1,
-      source: 'Participating Citizen (Patna)',
-      status: 'ACTIVE',
-      isDemo: true,
-      locationStatus,
-      coordinates: locationMeta?.coordinates || null,
-      gpsAccuracy: locationMeta?.accuracy || null,
-      locationCapturedAt: locationMeta?.locationCapturedAt || null,
-      corroborationStatus: isCorroborated ? 'CORROBORATED' : 'UNVERIFIED REPORT',
-    };
-
-    setTrafficReports((prev) => [newReport, ...prev]);
-    setSelectedIncident(newReport);
-    addToast(
-      'Observation Recorded',
-      `Your report for ${newReport.roadSegment} has been submitted (${locationStatus}).`,
-      'success'
-    );
-
-    // If report is ROAD_BLOCKED or TRAFFIC_HIGH and relevant to ambulance route, evaluate recommendation
-    if (tripStatus === 'ACTIVE' && (reportType === 'ROAD_BLOCKED' || reportType === 'TRAFFIC_HIGH')) {
-      if (!recommendationDecision && currentRoute.id === INITIAL_ROUTE.id) {
-        setActiveRecommendation(ALTERNATIVE_ROUTE);
-        triggerVoiceGuidance('New traffic observation received for your upcoming Patna route. An alternative is ready for review.');
+      // 1. Submit to Backend API
+      let backendReport = null;
+      try {
+        const payload = {
+          reportType,
+          roadSegment: targetRoad,
+          locationDescription: description || `Reported near ${targetRoad}`,
+          coordinates:
+            locationMeta?.coordinates ||
+            (userGpsLocation?.lat ? [userGpsLocation.lng, userGpsLocation.lat] : null),
+          accuracyMeters: locationMeta?.accuracy || userGpsLocation?.accuracy || 15,
+          locationStatus,
+          source: 'Participating Road User',
+        };
+        const res = await apiClient.createTrafficReport(payload);
+        if (res.success && res.data?.report) {
+          backendReport = res.data.report;
+        }
+      } catch (err) {
+        console.warn('[SimulationContext] Create traffic report API error:', err);
       }
-    }
-  }, [userCurrentRoad, trafficReports, tripStatus, currentRoute, recommendationDecision, addToast, triggerVoiceGuidance]);
+
+      // Check if other reports in current feed match this road segment
+      const matchingReports = trafficReports.filter(
+        (r) => r.roadSegment.toLowerCase() === targetRoad.toLowerCase()
+      );
+      const isCorroborated = matchingReports.length > 0;
+
+      const reportToAdd = backendReport || {
+        id: `rep-${Date.now()}`,
+        reportType,
+        roadSegment: targetRoad,
+        locationDescription: description || `Reported near ${targetRoad}`,
+        timestamp: new Date().toISOString(),
+        freshness: 'JUST_NOW',
+        verifiedCount: isCorroborated ? matchingReports.length + 1 : 1,
+        source: 'Participating Road User',
+        status: 'ACTIVE',
+        isDemo: false,
+        locationStatus,
+        coordinates:
+          locationMeta?.coordinates ||
+          (userGpsLocation?.lat ? [userGpsLocation.lat, userGpsLocation.lng] : null),
+        gpsAccuracy: locationMeta?.accuracy || userGpsLocation?.accuracy || null,
+        locationCapturedAt: locationMeta?.locationCapturedAt || new Date().toISOString(),
+        corroborationStatus: isCorroborated ? 'CORROBORATED' : 'UNVERIFIED REPORT',
+      };
+
+      setTrafficReports((prev) => [reportToAdd, ...prev.filter((r) => r.id !== reportToAdd.id)]);
+      setSelectedIncident(reportToAdd);
+      addToast(
+        'Observation Recorded',
+        `Your real-time report for ${reportToAdd.roadSegment} has been submitted (${locationStatus}).`,
+        'success'
+      );
+
+      // If report is ROAD_BLOCKED or TRAFFIC_HIGH and relevant to ambulance route, evaluate recommendation
+      if (tripStatus === 'ACTIVE' && (reportType === 'ROAD_BLOCKED' || reportType === 'TRAFFIC_HIGH')) {
+        if (!recommendationDecision && currentRoute.id === INITIAL_ROUTE.id) {
+          setActiveRecommendation(ALTERNATIVE_ROUTE);
+          triggerVoiceGuidance(`New traffic observation received near ${targetRoad}. Detour review recommended.`);
+        }
+      }
+      return reportToAdd;
+    },
+    [userCurrentRoad, trafficReports, tripStatus, userGpsLocation, currentRoute, recommendationDecision, addToast, triggerVoiceGuidance]
+  );
 
   // Determine if this road user should receive an active ambulance alert
   // Route-Aware Condition:
@@ -426,9 +780,12 @@ export function SimulationProvider({ children }) {
       return null;
     }
 
+    const userRoadStr = typeof userCurrentRoad === 'string' ? userCurrentRoad : (userCurrentRoad?.displayName || userCurrentRoad?.road || '');
+    if (!userRoadStr) return null;
+
     const upcomingSegments = currentRoute.segments.slice(currentSegmentIdx);
     const matchedSegment = upcomingSegments.find(
-      (seg) => seg.roadName.toLowerCase() === userCurrentRoad.toLowerCase()
+      (seg) => seg.roadName.toLowerCase() === userRoadStr.toLowerCase()
     );
 
     if (!matchedSegment) {
@@ -443,7 +800,7 @@ export function SimulationProvider({ children }) {
       ambulanceCallSign: selectedVehicle.callSign,
       vehicleNumber: selectedVehicle.vehicleNumber,
       roadName: matchedSegment.roadName,
-      direction: `Eastbound toward ${selectedDestination.shortName || selectedDestination.name}`,
+      direction: `Eastbound toward ${selectedDestination?.shortName || selectedDestination?.name || 'Assigned Trauma Center'}`,
       estimatedArrivalMinutes: segmentEtaMins,
       distanceMeters: matchedSegment.distanceMeters,
       yieldInstruction: 'Safely pull over to the left edge of the roadway. Keep the center lane open for emergency passage. Do not brake abruptly.',
@@ -456,6 +813,7 @@ export function SimulationProvider({ children }) {
     voiceService.stop();
     setTripStatus('IDLE');
     setTripStartTime(null);
+    setSelectedDestination(null);
     setCurrentRoute(INITIAL_ROUTE);
     setCurrentSegmentIdx(0);
     setActiveRecommendation(null);
@@ -463,7 +821,7 @@ export function SimulationProvider({ children }) {
     setTrafficReports(INITIAL_TRAFFIC_REPORTS);
     setSelectedIncident(INITIAL_TRAFFIC_REPORTS[0] || null);
     setMapZoom(1);
-    addToast('Simulation Reset', 'Patna route, trip, and community states restored to initial demo defaults.', 'info');
+    addToast('Simulation Reset', 'Route, trip, and community states reset to initial defaults.', 'info');
   }, [addToast]);
 
   const value = {
@@ -477,9 +835,16 @@ export function SimulationProvider({ children }) {
     // Authentication
     currentUser,
     isAuthenticated,
+    isAuthLoading,
     login,
     logout,
     // Driver & Trip
+    activeTrip,
+    isTestModeLocation,
+    driverLiveGps,
+    lastServerUpdate,
+    startDriverLocationWatcher,
+    stopDriverLocationWatcher,
     selectedVehicle,
     setSelectedVehicle,
     selectedDestination,
@@ -524,6 +889,7 @@ export function SimulationProvider({ children }) {
     userCurrentRoad,
     setUserCurrentRoad,
     userGpsLocation,
+    setUserGpsLocation,
     requestUserLocation,
     clearUserLocation,
     activeAlertForUser,

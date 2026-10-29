@@ -103,10 +103,10 @@ export function ActiveMission() {
         </div>
 
         <div className="mission-top-bar__center">
-          <div className="mission-target-chip" title={selectedDestination.name}>
+          <div className="mission-target-chip" title={selectedDestination?.name || 'Target Hospital'}>
             <MapPinIcon size={14} className="text-primary" />
             <span className="target-label">DESTINATION:</span>
-            <strong className="target-name">{selectedDestination.shortName || selectedDestination.name}</strong>
+            <strong className="target-name">{selectedDestination?.shortName || selectedDestination?.name || 'Target Hospital'}</strong>
           </div>
         </div>
 
@@ -224,7 +224,7 @@ export function ActiveMission() {
             <Card variant="surface" className="drawer-corridor-card">
               <div className="corridor-card-header">
                 <span className="corridor-card-title">Route Checkpoints</span>
-                <span className="corridor-card-dest">{selectedDestination.shortName || selectedDestination.name}</span>
+                <span className="corridor-card-dest">{selectedDestination?.shortName || selectedDestination?.name || 'Target Hospital'}</span>
               </div>
               <div className="corridor-card-list">
                 {currentRoute.segments.map((seg, idx) => {
@@ -273,7 +273,7 @@ export function ActiveMission() {
           <div className="confirm-modal-body">
             <AlertTriangleIcon size={32} className="text-amber" />
             <p>
-              Are you sure you want to end the emergency trip to <strong>{selectedDestination.shortName || selectedDestination.name}</strong>?
+              Are you sure you want to end the emergency trip to <strong>{selectedDestination?.shortName || selectedDestination?.name || 'Target Hospital'}</strong>?
             </p>
             <p className="modal-subtext text-muted">
               Active route broadcasts to road users will be deactivated, and this trip will be recorded in your Trip History. The unit will return to Standby mode.

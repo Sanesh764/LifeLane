@@ -458,7 +458,7 @@ export function OverviewPage() {
             <div className="arch-col arch-col--simulated">
               <div className="arch-col-tag text-amber">Simulated in this MVP Frontend</div>
               <ul className="arch-col-list">
-                <li>Demonstration driver session for UI access control (driver@amburoute.demo).</li>
+                <li>GPS route telemetry playback simulating active ambulance travel in Patna.</li>
                 <li>Waypoint progression stepped manually or automatically along Patna routes.</li>
                 <li>Simulated browser notification permission and alert triggers within 500m.</li>
                 <li>Curated Patna traffic observations demonstrating blockage evaluation.</li>
@@ -468,10 +468,10 @@ export function OverviewPage() {
             <div className="arch-col arch-col--backend">
               <div className="arch-col-tag text-mint">Connected in Backend Integrations</div>
               <ul className="arch-col-list">
+                <li>Cryptographic JWT bearer authentication, session revocation, and backend driver verification (/api/v1/auth).</li>
                 <li>Live routing service integration (OSRM / Google Maps / MapmyIndia) for real ETAs.</li>
                 <li>WebSocket & Geohash clustering for sub-second ambulance location broadcasts.</li>
                 <li>Web Push API (VAPID) delivery to mobile devices across telecom networks.</li>
-                <li>Cryptographic session tokens and institutional driver vetting.</li>
               </ul>
             </div>
           </div>

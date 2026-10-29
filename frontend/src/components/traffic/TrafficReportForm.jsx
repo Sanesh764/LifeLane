@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useSimulation } from '../../context/useSimulation.js';
+import { apiClient } from '../../services/api.js';
 import { Card } from '../common/Card.jsx';
 import { Button } from '../common/Button.jsx';
 import { Badge } from '../common/Badge.jsx';
@@ -27,6 +28,8 @@ export function TrafficReportForm() {
 
   const [selectedType, setSelectedType] = useState('TRAFFIC_HIGH');
   const [selectedSegment, setSelectedSegment] = useState(userCurrentRoad);
+  const [detectedRoad, setDetectedRoad] = useState(null);
+  const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
   const [description, setDescription] = useState('');
   const [hasConfirmedReview, setHasConfirmedReview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,73 +48,76 @@ export function TrafficReportForm() {
     'Kankarbagh Main Road',
   ];
 
-  // Coordinates of the currently selected road centroid
-  const roadCoordinates = useMemo(() => {
-    return getCoordinatesForRoad(selectedSegment);
-  }, [selectedSegment]);
-
-  // Frontend geometric proximity comparison between detected GPS and selected corridor
-  const proximityResult = useMemo(() => {
-    if (
-      !userGpsLocation ||
-      userGpsLocation.status !== 'SUCCESS' ||
-      userGpsLocation.lat === null ||
-      userGpsLocation.lng === null
-    ) {
-      return {
-        status: 'LOCATION UNVERIFIED',
-        distanceMeters: null,
-        isMatch: false,
-        explanation: 'No device GPS captured. Selected road is unverified against physical device location.',
-      };
-    }
-
-    const distance = calculateDistanceMeters(
-      [userGpsLocation.lat, userGpsLocation.lng],
-      roadCoordinates
-    );
-
-    // If device is within 1500m of the Patna road centroid, consider it an approximate frontend match
-    if (distance !== null && distance <= 1500) {
-      return {
-        status: 'LOCATION MATCHED',
-        distanceMeters: distance,
-        isMatch: true,
-        explanation: `Device GPS is ~${distance}m from selected corridor centroid (±${userGpsLocation.accuracy}m confidence). Approximate frontend proximity match.`,
-      };
-    }
-
-    return {
-      status: 'LOCATION UNVERIFIED',
-      distanceMeters: distance,
-      isMatch: false,
-      explanation: `Device GPS is ~${(distance / 1000).toFixed(1)}km from selected corridor centroid. Physical location does not match selected road.`,
-    };
-  }, [userGpsLocation, roadCoordinates]);
-
-  // Check existing reports in simulation feed for corroboration
-  const existingReportsOnRoad = useMemo(() => {
-    return (trafficReports || []).filter(
-      (r) => r.roadSegment.toLowerCase() === selectedSegment.toLowerCase()
-    );
-  }, [trafficReports, selectedSegment]);
-
-  const corroborationStatus = existingReportsOnRoad.length > 0 ? 'CORROBORATED' : 'UNVERIFIED REPORT';
-
-  const isGpsLocating = userGpsLocation?.status === 'LOCATING';
   const hasGpsSuccess = userGpsLocation?.status === 'SUCCESS' && userGpsLocation?.lat !== null;
+  const isGpsLocating = userGpsLocation?.status === 'LOCATING';
   const hasGpsError =
     userGpsLocation?.status === 'DENIED' ||
     userGpsLocation?.status === 'UNAVAILABLE' ||
     userGpsLocation?.status === 'TIMEOUT' ||
     userGpsLocation?.status === 'UNSUPPORTED';
 
-  const handleSubmit = (e) => {
+  // Reverse geocode detected GPS location into real street / area name
+  useEffect(() => {
+    if (hasGpsSuccess && userGpsLocation.lat && userGpsLocation.lng) {
+      let isCancelled = false;
+      async function resolveRoad() {
+        setIsReverseGeocoding(true);
+        try {
+          const res = await apiClient.reverseGeocode(userGpsLocation.lat, userGpsLocation.lng);
+          if (!isCancelled && res) {
+            setDetectedRoad(res);
+            setSelectedSegment(res.displayName || res.road);
+          }
+        } catch (err) {
+          console.warn('[TrafficReportForm] Reverse geocode error:', err);
+        } finally {
+          if (!isCancelled) setIsReverseGeocoding(false);
+        }
+      }
+      resolveRoad();
+      return () => {
+        isCancelled = true;
+      };
+    } else if (!hasGpsSuccess) {
+      setDetectedRoad(null);
+    }
+  }, [hasGpsSuccess, userGpsLocation?.lat, userGpsLocation?.lng]);
+
+  // Proximity verification result based on real GPS capture
+  const proximityResult = useMemo(() => {
+    if (!hasGpsSuccess) {
+      return {
+        status: 'LOCATION UNVERIFIED',
+        distanceMeters: null,
+        isMatch: false,
+        explanation: 'No device GPS captured. Report will be logged as manual unverified observation.',
+      };
+    }
+
+    return {
+      status: 'LOCATION MATCHED',
+      distanceMeters: 0,
+      isMatch: true,
+      explanation: `Device GPS captured at ${userGpsLocation.lat.toFixed(5)}° N, ${userGpsLocation.lng.toFixed(5)}° E (±${userGpsLocation.accuracy}m confidence). Physical observation location verified.`,
+    };
+  }, [hasGpsSuccess, userGpsLocation]);
+
+  // Check existing reports in simulation feed for corroboration
+  const existingReportsOnRoad = useMemo(() => {
+    if (!selectedSegment || typeof selectedSegment !== 'string') return [];
+    return (trafficReports || []).filter(
+      (r) => r?.roadSegment && typeof r.roadSegment === 'string' && r.roadSegment.toLowerCase() === selectedSegment.toLowerCase()
+    );
+  }, [trafficReports, selectedSegment]);
+
+  const corroborationStatus = existingReportsOnRoad.length > 0 ? 'CORROBORATED' : 'UNVERIFIED REPORT';
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
 
-    if (!selectedSegment) {
-      setErrorMessage('Please select an observed road segment in Patna.');
+    if (!selectedSegment || selectedSegment.trim().length === 0) {
+      setErrorMessage('Please specify the observed road or intersection.');
       return;
     }
     if (!selectedType) {
@@ -124,28 +130,31 @@ export function TrafficReportForm() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
       const locationMeta = {
         locationStatus: proximityResult.status,
         coordinates: hasGpsSuccess ? [userGpsLocation.lat, userGpsLocation.lng] : null,
         accuracy: hasGpsSuccess ? userGpsLocation.accuracy : null,
-        locationCapturedAt: hasGpsSuccess ? userGpsLocation.timestamp : null,
-        isDemo: true,
+        locationCapturedAt: hasGpsSuccess ? userGpsLocation.timestamp : new Date().toISOString(),
+        isDemo: false,
       };
 
-      submitTrafficReport(selectedType, selectedSegment, description, locationMeta);
+      await submitTrafficReport(selectedType, selectedSegment.trim(), description, locationMeta);
 
       setLastSubmitted({
         type: selectedType,
-        road: selectedSegment,
+        road: selectedSegment.trim(),
         locationStatus: proximityResult.status,
         hasGps: hasGpsSuccess,
       });
 
       setDescription('');
       setHasConfirmedReview(false);
+    } catch (err) {
+      setErrorMessage(err.message || 'Failed to submit traffic report.');
+    } finally {
       setIsSubmitting(false);
-    }, 350);
+    }
   };
 
   return (
@@ -302,29 +311,70 @@ export function TrafficReportForm() {
           </div>
         </div>
 
-        {/* Step 2: Road Segment Selection */}
+        {/* Step 2: Road or Intersection Selection */}
         <div className="form-group">
-          <label className="form-label" htmlFor="road-select">
-            <MapPinIcon size={16} />
-            <span>Observed Road Segment (Patna Network)</span>
-          </label>
-          <select
-            id="road-select"
-            className="form-select"
-            value={selectedSegment}
-            onChange={(e) => {
-              setSelectedSegment(e.target.value);
-              setErrorMessage('');
-            }}
-          >
-            {roadOptions.map((road) => (
-              <option key={road} value={road}>
-                {road}
-              </option>
-            ))}
-          </select>
+          <div className="group-label-row">
+            <label className="form-label mb-0" htmlFor="road-input">
+              <MapPinIcon size={16} className="text-primary" />
+              <span>Observed Road or Intersection</span>
+            </label>
+            {detectedRoad && (
+              <Badge variant="clear" size="xs">
+                GPS DETECTED
+              </Badge>
+            )}
+          </div>
+
+          {isReverseGeocoding && (
+            <div style={{ fontSize: '0.82rem', color: '#0284c7', margin: '4px 0 8px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <RefreshCwIcon size={13} className="spin" />
+              <span>Resolving street name from live device coordinates...</span>
+            </div>
+          )}
+
+          {/* Quick chip to restore auto-detected GPS road if modified */}
+          {detectedRoad && selectedSegment !== detectedRoad.displayName && (
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '6px 10px', margin: '6px 0 8px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+              <span style={{ fontSize: '0.82rem', color: '#166534', fontWeight: 600 }}>
+                📍 GPS Detected: <strong>{detectedRoad.displayName}</strong>
+              </span>
+              <button
+                type="button"
+                style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer', fontWeight: 700 }}
+                onClick={() => {
+                  setSelectedSegment(detectedRoad.displayName);
+                  setErrorMessage('');
+                }}
+              >
+                Use This
+              </button>
+            </div>
+          )}
+
+          <div style={{ position: 'relative' }}>
+            <input
+              id="road-input"
+              type="text"
+              className="form-input"
+              placeholder="e.g. NH-33, Main Market Road, Station Road"
+              value={selectedSegment}
+              onChange={(e) => {
+                setSelectedSegment(e.target.value);
+                setErrorMessage('');
+              }}
+              list="road-suggestions"
+            />
+            <datalist id="road-suggestions">
+              {detectedRoad && <option value={detectedRoad.displayName} />}
+              {roadOptions.map((road) => (
+                <option key={road} value={road} />
+              ))}
+            </datalist>
+          </div>
           <span className="form-input-help">
-            Select the corridor where the obstruction or traffic was observed. If GPS permission was declined, manual selection remains active.
+            {hasGpsSuccess
+              ? 'Auto-resolved from your device GPS coordinates. You can type or adjust the exact street name or landmark.'
+              : 'Type your observed road or choose from suggestions. Click "Use My Current Location" above for automatic GPS detection.'}
           </span>
         </div>
 

@@ -119,17 +119,19 @@ export function DriverHome() {
               <MapPinIcon size={20} />
             </div>
             <span className="summary-card-tag">
-              {isTripActive ? 'ACTIVE TARGET BASE' : 'DEFAULT BASE DESTINATION'}
+              {isTripActive ? 'ACTIVE TARGET BASE' : 'MISSION DESTINATION'}
             </span>
           </div>
           <div className="summary-card-title">
-            {selectedDestination.shortName || selectedDestination.name}
+            {selectedDestination ? (selectedDestination.shortName || selectedDestination.name) : 'No Destination Assigned'}
           </div>
           <div className="summary-card-metric">
-            ~{selectedDestination.distanceKm} km · {selectedDestination.baseEtaMins} min base ETA
+            {selectedDestination
+              ? `~${selectedDestination.distanceKm} km · ${selectedDestination.baseEtaMins || 15} min base ETA`
+              : 'Awaiting emergency dispatch'}
           </div>
           <div className="summary-card-footer text-muted">
-            {isTripActive ? 'Live corridor broadcast active' : 'Selectable during Start Emergency flow'}
+            {isTripActive ? 'Live corridor broadcast active' : 'Select origin & hospital on Start Emergency'}
           </div>
         </Card>
 
@@ -139,7 +141,7 @@ export function DriverHome() {
             <div className="summary-card-icon-wrap text-amber">
               <AlertTriangleIcon size={20} />
             </div>
-            <span className="summary-card-tag">PATNA OBSERVATIONS</span>
+            <span className="summary-card-tag">CORRIDOR OBSERVATIONS</span>
           </div>
           <div className="summary-card-title">
             {trafficReports?.length || 0} Corridor Hazard Reports
