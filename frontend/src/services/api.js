@@ -202,17 +202,27 @@ export const apiClient = {
    * POST /api/v1/traffic/reports
    */
   async submitReport(reportData) {
+    let reporterId = null;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        reporterId = localStorage.getItem('amburoute_reporter_id');
+        if (!reporterId) {
+          reporterId = 'rep_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+          localStorage.setItem('amburoute_reporter_id', reporterId);
+        }
+      }
+    } catch {
+      // Ignore storage errors in restricted contexts
+    }
+    const payload = reporterId ? { reporterId, ...reportData } : { ...reportData };
     return request('/traffic/reports', {
       method: 'POST',
-      body: JSON.stringify(reportData),
+      body: JSON.stringify(payload),
     });
   },
 
   async createTrafficReport(reportData) {
-    return request('/traffic/reports', {
-      method: 'POST',
-      body: JSON.stringify(reportData),
-    });
+    return this.submitReport(reportData);
   },
 
   /**
@@ -226,6 +236,21 @@ export const apiClient = {
     if (query.radius !== undefined) q.append('radius', query.radius);
     const qs = q.toString() ? `?${q.toString()}` : '';
     return request(`/traffic/reports${qs}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Fetch corroborated traffic clusters & AI/deterministic corridor advisories
+   * GET /api/v1/traffic/clusters
+   */
+  async getTrafficClusters(query = {}) {
+    const q = new URLSearchParams();
+    if (query.lat !== undefined) q.append('lat', query.lat);
+    if (query.lng !== undefined) q.append('lng', query.lng);
+    if (query.radius !== undefined) q.append('radius', query.radius);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request(`/traffic/clusters${qs}`, {
       method: 'GET',
     });
   },

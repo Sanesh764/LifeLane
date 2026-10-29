@@ -85,7 +85,7 @@ export function ActiveTripPanel() {
       {/* Upcoming Corridor Checklist */}
       <div className="corridor-checklist">
         <div className="corridor-checklist-header">
-          <span>UPCOMING ROUTE CORRIDORS (PATNA)</span>
+          <span>UPCOMING ROUTE CORRIDORS</span>
           <Badge variant="neutral" size="sm">500m Targeting</Badge>
         </div>
 

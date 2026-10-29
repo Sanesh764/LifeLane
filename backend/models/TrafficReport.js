@@ -75,6 +75,12 @@ const TrafficReportSchema = new mongoose.Schema(
       trim: true,
       default: 'Participating Road User',
     },
+    reporterId: {
+      type: String,
+      trim: true,
+      default: null,
+      index: true,
+    },
     status: {
       type: String,
       enum: ['ACTIVE', 'RESOLVED', 'EXPIRED'],

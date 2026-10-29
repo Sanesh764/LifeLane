@@ -18,6 +18,8 @@ import {
 
 export function SubscriptionBanner() {
   const {
+    activeTrip,
+    driverLiveGps,
     subscriptionPermission,
     setSubscriptionPermission,
     isSubscribed,
@@ -46,7 +48,7 @@ export function SubscriptionBanner() {
     lastSentAt: null,
   });
 
-  // Check browser push support on mount
+  // Check browser push support on mount and resume heartbeat if consented
   useEffect(() => {
     const supported = pushService.isSupported();
     setIsPushSupported(supported);
@@ -56,9 +58,31 @@ export function SubscriptionBanner() {
       if (storedHash) {
         setActiveEndpointHash(storedHash);
       }
-      setIsLocationConsented(pushService.getStoredLocationConsent());
+      const consented = pushService.getStoredLocationConsent();
+      setIsLocationConsented(consented);
+      if (consented && storedHash) {
+        handleEnableLocationSharing();
+      }
     }
   }, []);
+
+  // Compute reference location for dynamic proximity test fixtures
+  const testBaseCoords = React.useMemo(() => {
+    if (driverLiveGps?.lat && driverLiveGps?.lng) {
+      return { lat: driverLiveGps.lat, lng: driverLiveGps.lng, label: 'Live Ambulance' };
+    }
+    if (activeTrip?.currentLocation?.coordinates) {
+      return {
+        lat: activeTrip.currentLocation.coordinates[1],
+        lng: activeTrip.currentLocation.coordinates[0],
+        label: 'Active Ambulance',
+      };
+    }
+    if (userGpsLocation?.lat && userGpsLocation?.lng) {
+      return { lat: userGpsLocation.lat, lng: userGpsLocation.lng, label: 'Device GPS' };
+    }
+    return { lat: 24.999, lng: 86.123, label: 'Regional Corridor' };
+  }, [driverLiveGps?.lat, driverLiveGps?.lng, activeTrip, userGpsLocation?.lat, userGpsLocation?.lng]);
 
   // Handle Real Web Push Subscription
   const handleRealPushSubscribe = async () => {
@@ -373,31 +397,49 @@ export function SubscriptionBanner() {
                 type="button"
                 className="btn btn-sm btn-outline"
                 style={{ fontSize: '0.74rem', padding: '4px 8px' }}
-                onClick={() => handleApplyDiagnosticCoords(25.612, 85.145, 'Patna Junction Sector (2.1 km)')}
+                onClick={() =>
+                  handleApplyDiagnosticCoords(
+                    Number((testBaseCoords.lat + 0.012).toFixed(6)),
+                    Number((testBaseCoords.lng + 0.010).toFixed(6)),
+                    `${testBaseCoords.label} Sector (1.8 km)`
+                  )
+                }
                 disabled={!activeEndpointHash}
                 title="Simulate location within 2-5 km alert zone"
               >
-                🧪 Near Zone (2.1 km)
+                🧪 Near Zone (1.8 km)
               </button>
               <button
                 type="button"
                 className="btn btn-sm btn-outline"
                 style={{ fontSize: '0.74rem', padding: '4px 8px' }}
-                onClick={() => handleApplyDiagnosticCoords(25.620, 85.120, 'Atal Path Sector (4.2 km)')}
+                onClick={() =>
+                  handleApplyDiagnosticCoords(
+                    Number((testBaseCoords.lat + 0.025).toFixed(6)),
+                    Number((testBaseCoords.lng + 0.020).toFixed(6)),
+                    `${testBaseCoords.label} Sector (3.8 km)`
+                  )
+                }
                 disabled={!activeEndpointHash}
                 title="Simulate location within outer alert zone"
               >
-                🧪 Outer Zone (4.2 km)
+                🧪 Outer Zone (3.8 km)
               </button>
               <button
                 type="button"
                 className="btn btn-sm btn-outline"
                 style={{ fontSize: '0.74rem', padding: '4px 8px' }}
-                onClick={() => handleApplyDiagnosticCoords(25.750, 85.300, 'Hajipur Highway (18.5 km)')}
+                onClick={() =>
+                  handleApplyDiagnosticCoords(
+                    Number((testBaseCoords.lat + 0.150).toFixed(6)),
+                    Number((testBaseCoords.lng + 0.150).toFixed(6)),
+                    'Out of Range Corridor (22 km)'
+                  )
+                }
                 disabled={!activeEndpointHash}
                 title="Simulate location far outside 5 km radius (ineligible)"
               >
-                🧪 Out of Range (18.5 km)
+                🧪 Out of Range (22 km)
               </button>
             </div>
           </div>

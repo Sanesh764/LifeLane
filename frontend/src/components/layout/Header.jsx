@@ -92,7 +92,7 @@ export function Header() {
           </div>
           <div className="brand-text-block">
             <div className="brand-title">AmbuRoute</div>
-            <div className="brand-subtitle">Emergency Operations · Patna Pilot</div>
+            <div className="brand-subtitle">Emergency Operations · Live Transit</div>
           </div>
         </div>
 

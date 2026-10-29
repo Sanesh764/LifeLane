@@ -1,5 +1,6 @@
 import React from 'react';
 import { useSimulation } from '../../context/useSimulation.js';
+import { calculateDistanceMeters } from '../../services/mapLocations.js';
 import { Badge } from '../common/Badge.jsx';
 import {
   CompassIcon,
@@ -28,12 +29,14 @@ export function DriverNavigationHUD() {
     activeTrip,
     isTestModeLocation,
     driverLiveGps,
+    driverLiveRoadName,
     lastServerUpdate,
     currentRoute,
     currentSegmentIdx,
     selectedDestination,
     currentSpeedKmh,
     trafficReports,
+    trafficClusters,
     isSpeaking,
     isMuted,
     setIsMuted,
@@ -43,12 +46,20 @@ export function DriverNavigationHUD() {
 
   const currentSegment = currentRoute.segments[currentSegmentIdx] || currentRoute.segments[0];
   const nextSegment = currentRoute.segments[currentSegmentIdx + 1];
+  const currentRoadDisplay = driverLiveRoadName || currentSegment.roadName;
 
-  // Calculate approximate remaining distance based on upcoming segments
-  const remainingMeters = currentRoute.segments
-    .slice(currentSegmentIdx)
-    .reduce((sum, seg) => sum + (seg.distanceMeters || 1000), 0);
-  const remainingKm = (remainingMeters / 1000).toFixed(1);
+  // Calculate live remaining straight-line distance if live mission, else sum segment distances
+  let remainingKm = '0.0';
+  if (currentRoute?.isLive && driverLiveGps?.lat && driverLiveGps?.lng && selectedDestination?.coordinates) {
+    const destCoords = [selectedDestination.coordinates[1], selectedDestination.coordinates[0]];
+    const distM = calculateDistanceMeters([driverLiveGps.lat, driverLiveGps.lng], destCoords);
+    remainingKm = distM ? (distM / 1000).toFixed(1) : currentRoute.totalDistanceKm || '0.0';
+  } else {
+    const remainingMeters = currentRoute.segments
+      .slice(currentSegmentIdx)
+      .reduce((sum, seg) => sum + (seg.distanceMeters || 1000), 0);
+    remainingKm = (remainingMeters / 1000).toFixed(1);
+  }
 
   // Find relevant traffic reports for upcoming route segments
   const upcomingRoadNames = currentRoute.segments
@@ -69,13 +80,13 @@ export function DriverNavigationHUD() {
         <div className="hud-maneuver-text">
           <div className="hud-waypoint-meta">
             <CompassIcon size={12} className="text-muted" />
-            <span>CURRENT: <strong>{currentSegment.roadName}</strong></span>
+            <span>CURRENT: <strong>{currentRoadDisplay}</strong></span>
           </div>
           <div className="hud-next-road-title">
-            {nextSegment ? nextSegment.roadName : `Entering ${selectedDestination?.shortName || selectedDestination?.name || 'Trauma Center'}`}
+            {nextSegment ? nextSegment.roadName : `Approaching ${selectedDestination?.shortName || selectedDestination?.name || 'Trauma Center'}`}
           </div>
           <div className="hud-maneuver-hint">
-            {nextSegment ? 'Continue straight along emergency corridor' : 'Approaching emergency trauma bay entrance'}
+            {nextSegment ? 'Continue along emergency transit corridor' : 'Direct emergency transit corridor'}
           </div>
         </div>
       </div>
@@ -113,7 +124,7 @@ export function DriverNavigationHUD() {
           <div className="hud-metric">
             <span className="hud-metric-lbl">EST. ETA</span>
             <span className="hud-metric-val text-amber">~{currentRoute.currentEtaMins} min</span>
-            <span className="hud-demo-badge">DEMO</span>
+            {!currentRoute?.isLive && <span className="hud-demo-badge">DEMO</span>}
           </div>
           <div className="hud-metric hud-metric--speed">
             <span className="hud-metric-lbl">SPEED</span>
@@ -181,7 +192,9 @@ export function DriverNavigationHUD() {
         </div>
 
         <div className="hud-speech-disclaimer">
-          <Badge variant="neutral" size="xs">BROWSER SPEECH SYNTHESIS · DEMO</Badge>
+          <Badge variant="neutral" size="xs">
+            {currentRoute?.isLive ? 'AUDIO ROUTE ASSISTANCE' : 'BROWSER SPEECH SYNTHESIS · DEMO'}
+          </Badge>
         </div>
       </div>
     </div>

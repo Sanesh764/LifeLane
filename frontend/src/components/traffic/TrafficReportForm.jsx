@@ -37,15 +37,12 @@ export function TrafficReportForm() {
   const [lastSubmitted, setLastSubmitted] = useState(null);
 
   const roadOptions = [
-    'Bailey Road / Jawaharlal Nehru Marg',
-    'Dak Bungalow — Fraser Road Crossing',
-    'Gandhi Maidan South Corridor',
-    'Ashok Rajpath East',
-    'PMCH Emergency Trauma Gate',
-    'Boring Road Turnoff',
-    'Atal Path Express Corridor',
-    'JP Ganga Path (Marine Drive)',
-    'Kankarbagh Main Road',
+    'NH-33 Arterial Corridor',
+    'Station Road Commercial Crossing',
+    'District Highway Bypass',
+    'Bypass Road Milestone 4',
+    'Main Market Corridor',
+    'Hospital Link Road',
   ];
 
   const hasGpsSuccess = userGpsLocation?.status === 'SUCCESS' && userGpsLocation?.lat !== null;
@@ -162,7 +159,7 @@ export function TrafficReportForm() {
       <div className="traffic-form-header">
         <div>
           <div className="form-category-tag-row">
-            <Badge variant="neutral" size="sm">PATNA PUBLIC CORRIDOR</Badge>
+            <Badge variant="neutral" size="sm">LIVE COMMUNITY CORRIDOR</Badge>
             <Badge variant="clear" size="sm">LOCATION-AWARE UI</Badge>
           </div>
           <h2 className="traffic-form-title">One-Tap Road Condition Report</h2>

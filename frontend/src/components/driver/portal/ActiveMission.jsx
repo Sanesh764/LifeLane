@@ -29,12 +29,17 @@ import {
 export function ActiveMission() {
   const {
     tripStatus,
+    activeTrip,
+    driverLiveGps,
+    driverLiveRoadName,
+    lastServerUpdate,
     selectedVehicle,
     selectedDestination,
     currentRoute,
     currentSegmentIdx,
     advanceSegment,
     activeRecommendation,
+    trafficClusters,
     endTrip,
     navigateToDriverSubTab,
     isFocusedMissionMode,
@@ -163,21 +168,44 @@ export function ActiveMission() {
             <SimulationMap />
           </div>
 
-          {/* Floating Mobile/Quick Stepper Control */}
+          {/* Floating Mobile/Quick Navigation Status Bar */}
           <div className="mission-floating-stepper-bar">
-            <div className="stepper-waypoint-info">
-              <CompassIcon size={14} className="text-primary" />
-              <span>Checkpoint {currentSegmentIdx + 1} of {currentRoute.segments.length}: <strong>{currentSegment.roadName}</strong></span>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={PlayIcon}
-              onClick={advanceSegment}
-              className="btn-stepper-advance"
-            >
-              Advance Position (Demo)
-            </Button>
+            {currentRoute?.isLive ? (
+              <div className="stepper-waypoint-info" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CompassIcon size={14} className="text-primary" />
+                  <span>
+                    Current Road: <strong>{driverLiveRoadName || currentSegment.roadName}</strong>
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                    {driverLiveGps.lat && driverLiveGps.lng
+                      ? `${driverLiveGps.lat.toFixed(4)}°N, ${driverLiveGps.lng.toFixed(4)}°E (±${driverLiveGps.accuracy || 10}m)`
+                      : 'Acquiring GPS fix...'}
+                  </span>
+                  <Badge variant={lastServerUpdate.status === 'SYNCED' ? 'clear' : 'warning'} size="xs">
+                    {lastServerUpdate.status === 'SYNCED' ? 'GPS SYNCED' : 'LIVE'}
+                  </Badge>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="stepper-waypoint-info">
+                  <CompassIcon size={14} className="text-primary" />
+                  <span>Checkpoint {currentSegmentIdx + 1} of {currentRoute.segments.length}: <strong>{currentSegment.roadName}</strong></span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={PlayIcon}
+                  onClick={advanceSegment}
+                  className="btn-stepper-advance"
+                >
+                  Advance Position (Demo)
+                </Button>
+              </>
+            )}
           </div>
         </main>
 
@@ -187,7 +215,9 @@ export function ActiveMission() {
             <div className="drawer-header-row">
               <div className="drawer-title-block">
                 <span className="drawer-title">Corridor Intelligence</span>
-                <Badge variant="neutral" size="sm">Patna Sector</Badge>
+                <Badge variant="neutral" size="sm">
+                  {currentRoute?.isLive ? 'Live Corridor' : 'Patna Sector (Demo)'}
+                </Badge>
               </div>
               {isFocusedMissionMode && (
                 <button
@@ -200,25 +230,72 @@ export function ActiveMission() {
               )}
             </div>
 
-            {/* Checkpoint Stepper Panel */}
-            <Card variant="surface" className="drawer-stepper-card">
-              <div className="stepper-card-top">
-                <span className="stepper-tag">SIMULATION POSITION STEPPER</span>
-                <Badge variant="clear" size="xs">ACTIVE</Badge>
-              </div>
-              <p className="stepper-desc">
-                Step through the Patna emergency route checkpoints to simulate GPS movement and trigger route-aware yield broadcasts.
-              </p>
-              <Button
-                variant="primary"
-                size="md"
-                icon={PlayIcon}
-                onClick={advanceSegment}
-                fullWidth
-              >
-                Advance Ambulance Checkpoint
-              </Button>
-            </Card>
+            {/* Checkpoint Stepper Panel for Demo or Live GPS Panel for Live Mission */}
+            {currentRoute?.isLive ? (
+              <Card variant="surface" className="drawer-stepper-card">
+                <div className="stepper-card-top">
+                  <span className="stepper-tag">LIVE GPS TELEMETRY & DISPATCH</span>
+                  <Badge variant="clear" size="xs">REAL-TIME</Badge>
+                </div>
+                <div style={{ fontSize: '0.82rem', color: '#475569', margin: '8px 0', lineHeight: 1.5 }}>
+                  <div><strong>Origin:</strong> {currentRoute.origin ? `${currentRoute.origin[1].toFixed(4)}°N, ${currentRoute.origin[0].toFixed(4)}°E` : 'Current Device Position'}</div>
+                  <div><strong>Destination:</strong> {selectedDestination?.name || 'Emergency Medical Center'}</div>
+                  <div><strong>Straight-Line Distance:</strong> {currentRoute.totalDistanceKm || '~0'} km</div>
+                  <div><strong>Server Sync:</strong> {lastServerUpdate.status === 'SYNCED' ? 'Continuous (3s Heartbeat)' : 'Updating...'}</div>
+                </div>
+              </Card>
+            ) : (
+              <Card variant="surface" className="drawer-stepper-card">
+                <div className="stepper-card-top">
+                  <span className="stepper-tag">SIMULATION POSITION STEPPER</span>
+                  <Badge variant="clear" size="xs">ACTIVE</Badge>
+                </div>
+                <p className="stepper-desc">
+                  Step through the Patna emergency route checkpoints to simulate GPS movement and trigger route-aware yield broadcasts.
+                </p>
+                <Button
+                  variant="primary"
+                  size="md"
+                  icon={PlayIcon}
+                  onClick={advanceSegment}
+                  fullWidth
+                >
+                  Advance Ambulance Checkpoint
+                </Button>
+              </Card>
+            )}
+
+            {/* Clustered Traffic Intelligence & Meta AI / Fallback Advisories */}
+            {trafficClusters && trafficClusters.length > 0 && (
+              <Card variant="surface" style={{ marginTop: '12px', border: '1px solid #fed7aa', background: '#fffbeb' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <AlertTriangleIcon size={14} className="text-amber" />
+                    <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#9a3412' }}>
+                      Corroborated Incidents ({trafficClusters.length})
+                    </span>
+                  </div>
+                  <Badge variant="warning" size="xs">
+                    {trafficClusters[0]?.advisory?.metaAiStatus === 'SUCCESS' ? 'META AI' : 'TACTICAL ADVISORY'}
+                  </Badge>
+                </div>
+                {trafficClusters.slice(0, 3).map((cl, idx) => (
+                  <div key={idx} style={{ padding: '8px 0', borderTop: idx > 0 ? '1px dashed #fdba74' : 'none' }}>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                      {cl.roadSegment} ({cl.distinctReporters} reports)
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px' }}>
+                      {cl.advisory?.summary || 'Hazard reported on upcoming sector.'}
+                    </div>
+                    {cl.advisory?.recommendedCaution && (
+                      <div style={{ fontSize: '0.75rem', color: '#c2410c', marginTop: '4px', fontStyle: 'italic' }}>
+                        Guidance: {cl.advisory.recommendedCaution}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </Card>
+            )}
 
             {/* Route Corridor Progression Checklist */}
             <Card variant="surface" className="drawer-corridor-card">

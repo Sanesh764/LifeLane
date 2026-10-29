@@ -194,6 +194,10 @@ export const dispatchAlertsForTrip = async (tripId, ambulanceCoords) => {
     }
   }
 
+  console.log(
+    `[PushDispatch] Trip ${tripId}: Dispatched=${dispatched}, Suppressed=${suppressed}, Failed=${failed} (Eligible Subscribers=${eligibleSubscribers.length})`
+  );
+
   return { dispatched, suppressed, failed };
 };
 

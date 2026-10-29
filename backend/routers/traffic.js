@@ -1,5 +1,6 @@
 import express from 'express';
 import { TrafficReport } from '../models/TrafficReport.js';
+import { getRelevantClustersForLocation, clusterActiveReports } from '../services/trafficClusteringService.js';
 
 const router = express.Router();
 
@@ -59,7 +60,15 @@ router.post('/reports', async (req, res, next) => {
       locationAccuracyMeters,
       locationStatus,
       source,
+      reporterId: clientReporterId,
     } = req.body;
+
+    const reporterId = (
+      clientReporterId ||
+      req.ip ||
+      req.header('x-forwarded-for') ||
+      'anonymous-client'
+    ).toString().trim();
 
     // 1. Validate reportType
     if (!reportType || typeof reportType !== 'string') {
@@ -133,6 +142,7 @@ router.post('/reports', async (req, res, next) => {
 
     // 5. Create report in MongoDB
     const report = await TrafficReport.create({
+      reporterId,
       reportType: upperType,
       roadSegment: cleanRoad,
       locationDescription: (description || locationDescription || `Reported on ${cleanRoad}`).trim(),
@@ -213,6 +223,48 @@ router.get('/reports', async (req, res, next) => {
       data: {
         reports: reports.map(formatReport),
         count: reports.length,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/v1/traffic/clusters
+ * Fetch clustered, corroborated traffic incidents and AI/deterministic corridor advisories
+ */
+router.get('/clusters', async (req, res, next) => {
+  try {
+    const rawLat = req.query.lat ?? req.query.latitude;
+    const rawLng = req.query.lng ?? req.query.longitude;
+    const rawRadius = req.query.radius ?? req.query.radiusMeters;
+
+    let clusters;
+    if (rawLat !== undefined && rawLng !== undefined) {
+      const lat = Number(rawLat);
+      const lng = Number(rawLng);
+      const radius = Number(rawRadius) || 15000;
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return res.status(400).json({
+          error: {
+            code: 'INVALID_COORDINATES',
+            message: 'lat and lng must be valid numbers',
+          },
+        });
+      }
+
+      clusters = await getRelevantClustersForLocation(lat, lng, radius);
+    } else {
+      clusters = await clusterActiveReports();
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        clusters,
+        count: clusters.length,
       },
     });
   } catch (err) {

@@ -58,7 +58,7 @@ export function TripControls() {
         </div>
 
         <div className="driver-unit-meta">
-          <span>{currentUser ? currentUser.callSign : 'Patna Emergency 108'}</span>
+          <span>{currentUser ? currentUser.callSign : 'AmbuRoute Emergency 108'}</span>
           <span className="plate-tag">{currentUser ? currentUser.vehicleNumber : 'BR-01-EA-108'}</span>
         </div>
       </div>

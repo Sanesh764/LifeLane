@@ -105,7 +105,7 @@ export function DriverSidebar() {
         <div className="sidebar-unit-card">
           <div className="sidebar-unit-callsign">{selectedVehicle.callSign}</div>
           <div className="sidebar-unit-plate">
-            <span className="plate-tag">PATNA 108</span>
+            <span className="plate-tag">RAPID 108</span>
             <span className="plate-num">{selectedVehicle.vehicleNumber}</span>
           </div>
         </div>

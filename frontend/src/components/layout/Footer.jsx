@@ -29,7 +29,7 @@ export function Footer() {
 
         <div className="app-footer__bottom">
           <span>AmbuRoute © 2026. Designed with Signal & Motion principles.</span>
-          <span>Space Grotesk · IBM Plex Sans · IBM Plex Mono</span>
+          <span>try it.</span>
         </div>
       </div>
     </footer>

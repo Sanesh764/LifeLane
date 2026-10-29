@@ -187,6 +187,8 @@ function MapController({ center, zoom, shouldRecenter, onRecentered }) {
  */
 export function SimulationMap({ className = '', onSelectIncident }) {
   const {
+    activeTrip,
+    driverLiveGps,
     currentRoute,
     currentSegmentIdx,
     tripStatus,
@@ -195,6 +197,7 @@ export function SimulationMap({ className = '', onSelectIncident }) {
     userGpsLocation,
     advanceSegment,
     trafficReports,
+    trafficClusters,
     selectedIncident,
     setSelectedIncident,
     selectedVehicle,
@@ -207,11 +210,17 @@ export function SimulationMap({ className = '', onSelectIncident }) {
   const [tileError, setTileError] = useState(false);
   const [shouldRecenter, setShouldRecenter] = useState(false);
 
-  // Active ambulance segment coordinate
+  // Active ambulance coordinate from real driver GPS or trip location
   const currentSeg = currentRoute.segments[currentSegmentIdx] || currentRoute.segments[0];
   const ambulanceCoordinates = useMemo(() => {
-    return getCoordinatesForRoad(currentSeg.roadName);
-  }, [currentSeg.roadName]);
+    if (driverLiveGps?.lat && driverLiveGps?.lng && Number.isFinite(driverLiveGps.lat) && Number.isFinite(driverLiveGps.lng)) {
+      return [driverLiveGps.lat, driverLiveGps.lng];
+    }
+    if (activeTrip?.currentLocation?.coordinates && Array.isArray(activeTrip.currentLocation.coordinates)) {
+      return [activeTrip.currentLocation.coordinates[1], activeTrip.currentLocation.coordinates[0]];
+    }
+    return getCoordinatesForRoad(currentSeg?.roadName);
+  }, [driverLiveGps?.lat, driverLiveGps?.lng, activeTrip, currentSeg?.roadName]);
 
   // Destination coordinates
   const destinationCoordinates = useMemo(() => {
@@ -233,16 +242,16 @@ export function SimulationMap({ className = '', onSelectIncident }) {
     userGpsLocation?.status === 'SUCCESS' && userGpsLocation?.lat && userGpsLocation?.lng
   );
 
-  // Dynamic effective map center based on context: User GPS -> Active Ambulance -> Regional Center
+  // Dynamic effective map center based on context: Active Ambulance -> User GPS -> Regional Center
   const effectiveMapCenter = useMemo(() => {
+    if (isTripActive && ambulanceCoordinates && Number.isFinite(ambulanceCoordinates[0]) && Number.isFinite(ambulanceCoordinates[1])) {
+      return ambulanceCoordinates;
+    }
     if (hasUserGps) {
       return [userGpsLocation.lat, userGpsLocation.lng];
     }
-    if (isTripActive && ambulanceCoordinates) {
-      return ambulanceCoordinates;
-    }
     return PATNA_MAP_CENTER;
-  }, [hasUserGps, userGpsLocation?.lat, userGpsLocation?.lng, isTripActive, ambulanceCoordinates]);
+  }, [isTripActive, ambulanceCoordinates, hasUserGps, userGpsLocation?.lat, userGpsLocation?.lng]);
 
   const effectiveMapZoom = useMemo(() => {
     if (hasUserGps) return 15;
@@ -305,11 +314,11 @@ export function SimulationMap({ className = '', onSelectIncident }) {
 
           <Badge variant={isTripActive ? 'critical' : 'neutral'} size="sm">
             {isTripActive
-              ? `MISSION ACTIVE: SEGMENT ${currentSegmentIdx + 1}/${currentRoute.segments.length}`
+              ? (currentRoute?.isLive ? 'LIVE EMERGENCY MISSION' : `MISSION ACTIVE: SEGMENT ${currentSegmentIdx + 1}/${currentRoute.segments.length}`)
               : 'FLEET STANDBY'}
           </Badge>
 
-          {isTripActive && (
+          {isTripActive && !currentRoute?.isLive && (
             <button
               type="button"
               className="map-stepper-btn"
@@ -356,28 +365,47 @@ export function SimulationMap({ className = '', onSelectIncident }) {
             onRecentered={() => setShouldRecenter(false)}
           />
 
-          {/* Primary Route Polyline (Illustrative prototype path between Patna corridor nodes) */}
-          <Polyline
-            positions={PRIMARY_ROUTE_COORDINATES}
-            pathOptions={{
-              color: currentRoute.id === 'route-primary' ? '#F59E0B' : 'rgba(148, 163, 184, 0.4)',
-              weight: 5,
-              opacity: 0.9,
-              lineCap: 'round',
-              lineJoin: 'round',
-            }}
-          />
+          {/* Live Dynamic Route Polyline between Ambulance and Destination */}
+          {currentRoute?.isLive && ambulanceCoordinates && destinationCoordinates && (
+            <Polyline
+              positions={[ambulanceCoordinates, destinationCoordinates]}
+              pathOptions={{
+                color: '#DC2626',
+                weight: 5,
+                opacity: 0.9,
+                lineCap: 'round',
+                lineJoin: 'round',
+                dashArray: '8, 6',
+              }}
+            />
+          )}
 
-          {/* Alternative Detour Polyline (via Atal Path & JP Ganga Path Expressway) */}
-          <Polyline
-            positions={ALTERNATIVE_ROUTE_COORDINATES}
-            pathOptions={{
-              color: activeRecommendation ? '#10B981' : 'rgba(148, 163, 184, 0.3)',
-              weight: activeRecommendation ? 4 : 2,
-              dashArray: activeRecommendation ? '8, 6' : '4, 4',
-              opacity: 0.85,
-            }}
-          />
+          {/* Primary Route Polyline (Shown in demo mode only) */}
+          {!currentRoute?.isLive && (
+            <Polyline
+              positions={PRIMARY_ROUTE_COORDINATES}
+              pathOptions={{
+                color: currentRoute.id === 'route-primary' ? '#F59E0B' : 'rgba(148, 163, 184, 0.4)',
+                weight: 5,
+                opacity: 0.9,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+            />
+          )}
+
+          {/* Alternative Detour Polyline (via Atal Path & JP Ganga Path Expressway - Demo only) */}
+          {!currentRoute?.isLive && (
+            <Polyline
+              positions={ALTERNATIVE_ROUTE_COORDINATES}
+              pathOptions={{
+                color: activeRecommendation ? '#10B981' : 'rgba(148, 163, 184, 0.3)',
+                weight: activeRecommendation ? 4 : 2,
+                dashArray: activeRecommendation ? '8, 6' : '4, 4',
+                opacity: 0.85,
+              }}
+            />
+          )}
 
           {/* 500-Meter Proximity Alert Envelope around ambulance when active */}
           {isTripActive && (
@@ -404,8 +432,8 @@ export function SimulationMap({ className = '', onSelectIncident }) {
             </Circle>
           )}
 
-          {/* Key Patna Corridor Waypoints */}
-          {Object.values(PATNA_LOCATIONS).map((loc) => {
+          {/* Key Patna Corridor Waypoints (Demo mode only) */}
+          {!currentRoute?.isLive && Object.values(PATNA_LOCATIONS).map((loc) => {
             if (loc.category === 'hospital') return null; // rendered separately
 
             return (
@@ -610,7 +638,7 @@ export function SimulationMap({ className = '', onSelectIncident }) {
         </div>
 
         <div className="legend-attribution">
-          OpenStreetMap Basemap Tiles · Patna Prototype Transit Network · Illustrative Route Geometry
+          OpenStreetMap Basemap Tiles · Live Emergency Transit Network
         </div>
       </div>
     </div>

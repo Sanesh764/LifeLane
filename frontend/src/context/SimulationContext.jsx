@@ -10,6 +10,7 @@ import {
 import { voiceService } from '../services/voiceService.js';
 import { authService } from '../services/authService.js';
 import { apiClient } from '../services/api.js';
+import { calculateDistanceMeters } from '../services/mapLocations.js';
 import { SimulationContext } from './simulationContextInstance.js';
 
 export function SimulationProvider({ children }) {
@@ -36,6 +37,7 @@ export function SimulationProvider({ children }) {
     status: 'IDLE', // 'IDLE' | 'ACTIVE' | 'ERROR' | 'OFFLINE'
     error: null,
   });
+  const [driverLiveRoadName, setDriverLiveRoadName] = useState('');
   const [lastServerUpdate, setLastServerUpdate] = useState({
     timestamp: null,
     status: 'IDLE', // 'IDLE' | 'SYNCING' | 'SYNCED' | 'ERROR'
@@ -43,6 +45,27 @@ export function SimulationProvider({ children }) {
 
   const driverWatchIdRef = useRef(null);
   const lastSentTimestampRef = useRef(0);
+  const lastGeocodedCoordsRef = useRef({ lat: null, lng: null });
+
+  // Reverse geocode driver position (throttled)
+  const refreshDriverRoadName = useCallback(async (lat, lng) => {
+    if (!lat || !lng) return;
+    const prev = lastGeocodedCoordsRef.current;
+    if (prev.lat && prev.lng) {
+      const dist = calculateDistanceMeters([lat, lng], [prev.lat, prev.lng]);
+      if (dist && dist < 150) return; // Haven't moved 150m, skip geocoding call
+    }
+    lastGeocodedCoordsRef.current = { lat, lng };
+    try {
+      const info = await apiClient.reverseGeocode(lat, lng);
+      const road = typeof info === 'string' ? info : (info?.displayName || info?.road || '');
+      if (road) {
+        setDriverLiveRoadName(road);
+      }
+    } catch (e) {
+      console.warn('[SimulationContext] Reverse geocode driver error:', e);
+    }
+  }, []);
 
   // Stop continuous driver GPS watcher
   const stopDriverLocationWatcher = useCallback(() => {
@@ -82,6 +105,9 @@ export function SimulationProvider({ children }) {
               status: 'ACTIVE',
               error: null,
             });
+
+            // Trigger non-blocking reverse-geocoding to resolve road name
+            refreshDriverRoadName(lat, lng);
 
             // Throttle: max 1 update every 3 seconds to protect backend rate limiter
             if (now - lastSentTimestampRef.current < 3000) return;
@@ -165,8 +191,35 @@ export function SimulationProvider({ children }) {
                     ...prev,
                     name: trip.destination.label,
                     shortName: trip.destination.label.split('(')[0].trim(),
-                    coordinates: trip.destination.location?.coordinates || prev.coordinates,
+                    coordinates: trip.destination.location?.coordinates || prev?.coordinates,
                   }));
+                }
+
+                // Construct dynamic live route from restored backend trip
+                const originPt = trip.currentLocation?.coordinates || trip.initialLocation?.coordinates;
+                const destPt = trip.destination?.location?.coordinates;
+                if (originPt && destPt) {
+                  const distMeters = calculateDistanceMeters([originPt[1], originPt[0]], [destPt[1], destPt[0]]) || 5000;
+                  const distKm = Number((distMeters / 1000).toFixed(1));
+                  setCurrentRoute({
+                    id: `live-${trip.id || trip._id}`,
+                    name: `Emergency Transit to ${trip.destination.label}`,
+                    origin: originPt,
+                    destination: { label: trip.destination.label, coordinates: destPt },
+                    isLive: true,
+                    totalDistanceKm: distKm,
+                    currentEtaMins: Math.max(Math.round((distKm / 45) * 60), 2),
+                    segments: [
+                      {
+                        id: 'live-seg-1',
+                        roadName: 'Live Emergency Corridor',
+                        distanceKm: distKm,
+                        distanceMeters: distMeters,
+                        coordinates: [originPt, destPt],
+                        status: 'FLOWING',
+                      },
+                    ],
+                  });
                 }
                 startDriverLocationWatcher(trip.id || trip._id);
               }
@@ -216,30 +269,7 @@ export function SimulationProvider({ children }) {
   // Traffic Intelligence & Incident Selection
   const [trafficReports, setTrafficReports] = useState(INITIAL_TRAFFIC_REPORTS);
   const [selectedIncident, setSelectedIncident] = useState(() => INITIAL_TRAFFIC_REPORTS[0] || null);
-
-  // Load real-time community traffic reports from backend
-  useEffect(() => {
-    let isMounted = true;
-    async function loadReports() {
-      try {
-        const res = await apiClient.getTrafficReports();
-        if (isMounted && res.success && Array.isArray(res.data?.reports) && res.data.reports.length > 0) {
-          setTrafficReports((prev) => {
-            const existingIds = new Set(res.data.reports.map((r) => r.id));
-            const filteredPrev = prev.filter((p) => !existingIds.has(p.id));
-            return [...res.data.reports, ...filteredPrev];
-          });
-          setSelectedIncident(res.data.reports[0]);
-        }
-      } catch (err) {
-        console.warn('[SimulationContext] Failed to load backend traffic reports:', err);
-      }
-    }
-    loadReports();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const [trafficClusters, setTrafficClusters] = useState([]);
 
   // Map Controls State
   const [mapZoom, setMapZoom] = useState(1);
@@ -277,6 +307,62 @@ export function SimulationProvider({ children }) {
 
   // Feedback Toasts
   const [toasts, setToasts] = useState([]);
+
+  // Load real-time community traffic reports from backend
+  useEffect(() => {
+    let isMounted = true;
+    async function loadReports() {
+      try {
+        const res = await apiClient.getTrafficReports();
+        if (isMounted && res.success && Array.isArray(res.data?.reports) && res.data.reports.length > 0) {
+          setTrafficReports((prev) => {
+            const existingIds = new Set(res.data.reports.map((r) => r.id));
+            const filteredPrev = prev.filter((p) => !existingIds.has(p.id));
+            return [...res.data.reports, ...filteredPrev];
+          });
+          setSelectedIncident(res.data.reports[0]);
+        }
+      } catch (err) {
+        console.warn('[SimulationContext] Failed to load backend traffic reports:', err);
+      }
+    }
+    loadReports();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Poll traffic clusters & Meta AI / deterministic advisories every 10 seconds
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchClusters() {
+      try {
+        const query = {};
+        if (driverLiveGps.lat && driverLiveGps.lng) {
+          query.lat = driverLiveGps.lat;
+          query.lng = driverLiveGps.lng;
+          query.radius = 25000;
+        } else if (userGpsLocation?.lat && userGpsLocation?.lng) {
+          query.lat = userGpsLocation.lat;
+          query.lng = userGpsLocation.lng;
+          query.radius = 25000;
+        }
+        const res = await apiClient.getTrafficClusters(query);
+        if (isMounted && res.success && Array.isArray(res.data?.clusters)) {
+          setTrafficClusters(res.data.clusters);
+        }
+      } catch (err) {
+        console.warn('[SimulationContext] Fetch clusters error:', err);
+      }
+    }
+
+    fetchClusters();
+    const interval = setInterval(fetchClusters, 10000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [driverLiveGps.lat, driverLiveGps.lng, userGpsLocation?.lat, userGpsLocation?.lng]);
 
   const addToast = useCallback((title, message, type = 'info') => {
     const id = Date.now() + Math.random().toString(36).substring(2, 6);
@@ -410,7 +496,37 @@ export function SimulationProvider({ children }) {
       setTripStatus('ACTIVE');
       setTripStartTime(new Date());
       setCurrentSegmentIdx(0);
-      setCurrentRoute(INITIAL_ROUTE);
+
+      // Construct authentic dynamic live route avoiding fixed Patna demo data
+      const destCoords = dest.coordinates;
+      let distMeters = 5000;
+      if (originCoords && destCoords) {
+        distMeters = calculateDistanceMeters([originCoords[1], originCoords[0]], [destCoords[1], destCoords[0]]) || 5000;
+      }
+      const distKm = Number((distMeters / 1000).toFixed(1));
+      const initialRoad = driverLiveRoadName || 'Live Emergency Corridor';
+
+      const dynamicLiveRoute = {
+        id: `live-${backendTrip?.id || backendTrip?._id || Date.now()}`,
+        name: `Emergency Transit to ${dest.label || dest.name || 'Emergency Medical Center'}`,
+        origin: originCoords,
+        destination: dest,
+        isLive: true,
+        totalDistanceKm: distKm,
+        currentEtaMins: Math.max(Math.round((distKm / 45) * 60), 2),
+        segments: [
+          {
+            id: 'live-seg-1',
+            roadName: initialRoad,
+            distanceKm: distKm,
+            distanceMeters: distMeters,
+            coordinates: [originCoords, destCoords],
+            status: 'FLOWING',
+          },
+        ],
+      };
+
+      setCurrentRoute(dynamicLiveRoute);
       setRecommendationDecision(null);
       setActiveRecommendation(null);
       setIsFocusedMissionMode(true);
@@ -426,11 +542,11 @@ export function SimulationProvider({ children }) {
       );
 
       triggerVoiceGuidance(
-        `Emergency mission started to ${destLabel}. Proceed along ${INITIAL_ROUTE.segments[0].roadName}.`
+        `Emergency mission started to ${destLabel}. Proceed along ${initialRoad}.`
       );
       return true;
     },
-    [tripStatus, selectedDestination, driverLiveGps, startDriverLocationWatcher, addToast, triggerVoiceGuidance]
+    [tripStatus, selectedDestination, driverLiveGps, driverLiveRoadName, startDriverLocationWatcher, addToast, triggerVoiceGuidance]
   );
 
   // Handle Ending Emergency Trip (Safe return to Standby Home dashboard)
@@ -842,6 +958,7 @@ export function SimulationProvider({ children }) {
     activeTrip,
     isTestModeLocation,
     driverLiveGps,
+    driverLiveRoadName,
     lastServerUpdate,
     startDriverLocationWatcher,
     stopDriverLocationWatcher,
@@ -873,6 +990,7 @@ export function SimulationProvider({ children }) {
     rejectRecommendation,
     // Traffic & Incident Selection
     trafficReports,
+    trafficClusters,
     submitTrafficReport,
     selectedIncident,
     setSelectedIncident,
