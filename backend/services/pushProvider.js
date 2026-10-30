@@ -32,15 +32,22 @@ export class WebPushProvider {
 
     const payloadString = typeof payload === 'string' ? payload : JSON.stringify(payload);
 
+    // RFC 8030 Section 5.4: Topic MUST be max 32 characters and base64url safe
+    let safeTopic = options.topic;
+    if (typeof safeTopic === 'string') {
+      safeTopic = safeTopic.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 32);
+    }
+
     try {
       const response = await webpush.sendNotification(
         pushSubscription,
         payloadString,
         {
-          TTL: options.TTL || 60,
+          TTL: options.TTL || env.ALERTS?.pushTtlSeconds || 1800,
           urgency: options.urgency || 'high',
-          topic: options.topic,
+          ...(safeTopic ? { topic: safeTopic } : {}),
           ...options,
+          ...(safeTopic ? { topic: safeTopic } : {}),
         }
       );
 

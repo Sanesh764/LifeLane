@@ -36,6 +36,9 @@ describe('Phase B4: Emergency Alert & Web Push Notification Engine', () => {
   const patnaFar = [85.26, 25.64];
 
   before(async () => {
+    // Explicitly test proximity-based alert engine
+    env.NOTIFICATION_DEMO_BROADCAST_ALL = false;
+
     // Ensure mock push provider is active
     mockPush = new MockPushProvider();
     setPushProvider(mockPush);
@@ -482,7 +485,7 @@ describe('Phase B4: Emergency Alert & Web Push Notification Engine', () => {
       assert.equal(nearNotif.payload.tag, `ambulance-alert-${tripId}`);
 
       assert.equal(outerNotif.payload.data.tier, 'OUTER');
-      assert.match(outerNotif.payload.title, /AMBULANCE APPROACHING/);
+      assert.match(outerNotif.payload.title, /Ambulance Approaching/i);
       assert.equal(outerNotif.payload.tag, `ambulance-alert-${tripId}`);
     });
 

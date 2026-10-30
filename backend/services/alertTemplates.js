@@ -18,8 +18,8 @@ export const buildAlertPayload = ({ tier, tripId, distanceMeters, renotify = fal
   if (tier === ALERT_TIERS.NEAR) {
     const formattedMeters = Math.round(distanceMeters || 0);
     return {
-      title: '🚨 AMBULANCE NEARBY — PLEASE GIVE WAY SAFELY',
-      body: `An emergency ambulance is approximately ${formattedMeters}m away from your location. Yield right-of-way safely.`,
+      title: '🚑 AmbuRoute — Ambulance Approaching — PLEASE GIVE WAY SAFELY',
+      body: 'An ambulance is approaching your area. Please give way when safe.',
       icon: '/icons/alert-icon-192.png',
       badge: '/icons/alert-badge-72.png',
       tag,
@@ -32,21 +32,21 @@ export const buildAlertPayload = ({ tier, tripId, distanceMeters, renotify = fal
         distanceMeters: formattedMeters,
         timestamp,
         targetingMethod: 'PROXIMITY_GEOSPATIAL',
+        url: '/#alerts',
         disclaimer: 'Proximity-based estimate. Route-aware targeting is pending routing engine implementation.',
       },
     };
   }
 
   if (tier === ALERT_TIERS.OUTER) {
-    const km = ((distanceMeters || 0) / 1000).toFixed(1);
     return {
-      title: '🚨 URGENT: AMBULANCE APPROACHING',
-      body: `An emergency ambulance is active within ~${km} km. Please stay alert and prepare to give way.`,
+      title: '🚑 AmbuRoute — Ambulance Approaching',
+      body: 'An ambulance is approaching your area. Please give way when safe.',
       icon: '/icons/alert-icon-192.png',
       badge: '/icons/alert-badge-72.png',
       tag,
       renotify: Boolean(renotify),
-      requireInteraction: false,
+      requireInteraction: true,
       silent: false,
       data: {
         tripId: tripIdStr,
@@ -54,6 +54,7 @@ export const buildAlertPayload = ({ tier, tripId, distanceMeters, renotify = fal
         distanceMeters: Math.round(distanceMeters || 0),
         timestamp,
         targetingMethod: 'PROXIMITY_GEOSPATIAL',
+        url: '/#alerts',
         disclaimer: 'Proximity-based estimate. Route-aware targeting is pending routing engine implementation.',
       },
     };
@@ -61,7 +62,7 @@ export const buildAlertPayload = ({ tier, tripId, distanceMeters, renotify = fal
 
   if (tier === ALERT_TIERS.ENDED) {
     return {
-      title: 'Ambulance Alert Ended',
+      title: '🚑 AmbuRoute — Ambulance Alert Ended',
       body: 'The emergency response in your area has concluded. Thank you for keeping the roads clear.',
       icon: '/icons/alert-icon-192.png',
       badge: '/icons/alert-badge-72.png',
@@ -74,6 +75,7 @@ export const buildAlertPayload = ({ tier, tripId, distanceMeters, renotify = fal
         tier: ALERT_TIERS.ENDED,
         timestamp,
         targetingMethod: 'PROXIMITY_GEOSPATIAL',
+        url: '/#alerts',
       },
     };
   }

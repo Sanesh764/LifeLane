@@ -151,41 +151,28 @@ const handleRegisterSubscription = async (req, res, next) => {
     const endpointHash = hashEndpoint(endpoint);
     const userAgent = req.headers['user-agent'] || null;
 
-    // Idempotent upsert by endpointHash
-    let subscription = await PushSubscription.findOne({ endpointHash });
-
-    if (subscription) {
-      subscription.endpoint = endpoint;
-      subscription.keys = {
-        p256dh: keys.p256dh.trim(),
-        auth: keys.auth.trim(),
-      };
-      subscription.notificationConsent = true;
-      subscription.locationConsent = Boolean(locationConsent);
-      subscription.status = 'ACTIVE';
-      subscription.deviceType = ['mobile', 'desktop', 'tablet', 'unknown'].includes(deviceType)
-        ? deviceType
-        : 'unknown';
-      if (userAgent) subscription.userAgent = userAgent;
-
-      await subscription.save();
-    } else {
-      subscription = await PushSubscription.create({
-        endpoint,
-        endpointHash,
-        keys: {
-          p256dh: keys.p256dh.trim(),
-          auth: keys.auth.trim(),
+    // Atomic idempotent upsert by endpointHash
+    const subscription = await PushSubscription.findOneAndUpdate(
+      { endpointHash },
+      {
+        $set: {
+          endpoint,
+          endpointHash,
+          keys: {
+            p256dh: keys.p256dh.trim(),
+            auth: keys.auth.trim(),
+          },
+          notificationConsent: true,
+          locationConsent: Boolean(locationConsent),
+          status: 'ACTIVE',
+          deviceType: ['mobile', 'desktop', 'tablet', 'unknown'].includes(deviceType)
+            ? deviceType
+            : 'unknown',
+          ...(userAgent ? { userAgent } : {}),
         },
-        notificationConsent: true,
-        locationConsent: Boolean(locationConsent),
-        status: 'ACTIVE',
-        deviceType: ['mobile', 'desktop', 'tablet', 'unknown'].includes(deviceType)
-          ? deviceType
-          : 'unknown',
-        userAgent,
-      });
-    }
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     res.status(201).json({
       data: {
@@ -193,6 +180,21 @@ const handleRegisterSubscription = async (req, res, next) => {
       },
     });
   } catch (err) {
+    if (err.code === 11000 || (err.message && err.message.includes('E11000'))) {
+      try {
+        const hash = endpointHash || hashEndpoint(req.body?.endpoint || '');
+        const existing = await PushSubscription.findOne({ endpointHash: hash });
+        if (existing) {
+          return res.status(200).json({
+            data: {
+              subscription: existing.toJSON(),
+            },
+          });
+        }
+      } catch (findErr) {
+        return next(findErr);
+      }
+    }
     next(err);
   }
 };
@@ -479,16 +481,17 @@ router.post('/test', async (req, res, next) => {
 
     const pushProvider = getPushProvider();
     const payload = {
-      title: '🔔 AmbuRoute Web Push Active',
-      body: 'Verified test notification: Your browser is ready to receive live emergency ambulance alerts.',
+      title: '🚑 AmbuRoute — Demo Ambulance Alert (Web Push Active)',
+      body: 'An ambulance mission has just started. This is a hackathon demonstration notification.',
       icon: '/icons/alert-icon-192.png',
       badge: '/icons/alert-badge-72.png',
       tag: 'amburoute-test-push',
       renotify: true,
-      requireInteraction: false,
+      requireInteraction: true,
       data: {
         type: 'TEST_VERIFICATION',
         timestamp: new Date().toISOString(),
+        url: '/#alerts',
       },
     };
 

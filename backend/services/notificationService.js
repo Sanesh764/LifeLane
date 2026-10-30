@@ -67,32 +67,103 @@ export const findEligibleSubscribers = async (ambulanceCoords, maxDistanceMeters
  * Dispatches emergency alerts for an active trip to all nearby eligible subscribers
  */
 export const dispatchAlertsForTrip = async (tripId, ambulanceCoords) => {
-  if (!tripId || !ambulanceCoords) return { dispatched: 0, suppressed: 0, failed: 0 };
+  if (!tripId) return { dispatched: 0, suppressed: 0, failed: 0 };
 
   const pushProvider = getPushProvider();
-  const eligibleSubscribers = await findEligibleSubscribers(ambulanceCoords);
+  const isDemo = env.NOTIFICATION_DEMO_BROADCAST_ALL;
+
+  // Total registered for visibility
+  const totalRegistered = await PushSubscription.countDocuments({
+    status: 'ACTIVE',
+    notificationConsent: true,
+  });
+
+  // Determine eligible subscribers based on mode
+  let eligibleSubscribers;
+  if (isDemo) {
+    // Demo broadcast: ignore location, include all active, consented subs
+    eligibleSubscribers = await PushSubscription.find({
+      status: 'ACTIVE',
+      notificationConsent: true,
+    });
+  } else {
+    // Normal proximity mode
+    if (!ambulanceCoords) return { dispatched: 0, suppressed: 0, failed: 0 };
+    eligibleSubscribers = await findEligibleSubscribers(ambulanceCoords);
+  }
+
+  console.log(`[PushDispatch] === START DISPATCH for Trip ${tripId} ===`);
+  console.log(`[PushDispatch] Mode: ${isDemo ? 'DEMO_BROADCAST_ALL' : 'PROXIMITY_GEOSPATIAL'} | Total Subscriptions: ${totalRegistered} | Eligible: ${eligibleSubscribers.length}`);
 
   let dispatched = 0;
   let suppressed = 0;
   let failed = 0;
 
   for (const sub of eligibleSubscribers) {
+    let tier = null;
+    let distance = null;
+    const subHashShort = sub.endpointHash ? sub.endpointHash.substring(0, 16) : 'unknown';
+
     try {
-      const distance = calculateDistanceMeters(ambulanceCoords, sub.location.coordinates);
+      if (isDemo) {
+        // Prevent duplicate notifications on duplicate trip-start events in demo mode
+        const isSameTrip = sub.lastNotifiedTripId && sub.lastNotifiedTripId.toString() === tripId.toString();
+        if (isSameTrip) {
+          suppressed++;
+          console.log(`[PushDispatch] Sub #${subHashShort}: SUPPRESSED (already notified for trip ${tripId})`);
+          continue;
+        }
 
-      // Determine alert tier
-      const tier =
-        distance <= env.ALERTS.nearRadiusMeters ? ALERT_TIERS.NEAR : ALERT_TIERS.OUTER;
+        tier = ALERT_TIERS.NEAR;
+        const payload = {
+          title: '🚑 AmbuRoute — Demo Ambulance Alert',
+          body: 'An ambulance mission has just started. This is a hackathon demonstration notification.',
+          icon: '/icons/alert-icon-192.png',
+          badge: '/icons/alert-badge-72.png',
+          tag: `amburoute-demo-${tripId}`,
+          renotify: true,
+          requireInteraction: true,
+          data: { tripId: tripId.toString(), mode: 'DEMO', url: '/#alerts' },
+        };
 
-      // Check transition & cooldown
+        console.log(`[PushDispatch] Sub #${subHashShort}: Sending Demo Web Push...`);
+        const sendRes = await pushProvider.sendNotification(
+          { endpoint: sub.endpoint, endpointHash: sub.endpointHash, keys: sub.keys },
+          payload,
+          { topic: `demo-${tripId}`, urgency: 'high' }
+        );
+        console.log(`[PushDispatch] Sub #${subHashShort}: DELIVERED (Status ${sendRes.statusCode || 201})`);
+
+        sub.lastNotifiedAt = new Date();
+        sub.lastNotifiedTripId = tripId;
+        sub.lastAlertTier = ALERT_TIERS.NEAR;
+        await sub.save();
+
+        await AlertDispatch.create({
+          tripId,
+          subscriptionId: sub._id,
+          endpointHash: sub.endpointHash,
+          alertTier: ALERT_TIERS.NEAR,
+          distanceMeters: null,
+          status: 'ACCEPTED',
+          ...(ambulanceCoords && ambulanceCoords.length === 2
+            ? { ambulanceLocation: { type: 'Point', coordinates: ambulanceCoords } }
+            : {}),
+        });
+        dispatched++;
+        continue;
+      }
+
+      // Proximity mode: calculate distance
+      distance = calculateDistanceMeters(ambulanceCoords, sub.location.coordinates);
+      tier = distance <= env.ALERTS.nearRadiusMeters ? ALERT_TIERS.NEAR : ALERT_TIERS.OUTER;
+
       const isSameTrip = sub.lastNotifiedTripId && sub.lastNotifiedTripId.toString() === tripId.toString();
       const isTierUpgrade = isSameTrip && sub.lastAlertTier === ALERT_TIERS.OUTER && tier === ALERT_TIERS.NEAR;
-
       const now = Date.now();
       const lastNotifiedMs = sub.lastNotifiedAt ? new Date(sub.lastNotifiedAt).getTime() : 0;
       const cooldownElapsed = now - lastNotifiedMs >= env.ALERTS.repeatCooldownSeconds * 1000;
 
-      // If cooldown has not elapsed and not an upgrade, suppress alert
       if (isSameTrip && !cooldownElapsed && !isTierUpgrade) {
         suppressed++;
         await AlertDispatch.create({
@@ -102,15 +173,11 @@ export const dispatchAlertsForTrip = async (tripId, ambulanceCoords) => {
           alertTier: tier,
           distanceMeters: Math.round(distance),
           status: 'SUPPRESSED',
-          ambulanceLocation: {
-            type: 'Point',
-            coordinates: ambulanceCoords,
-          },
+          ambulanceLocation: { type: 'Point', coordinates: ambulanceCoords },
         });
         continue;
       }
 
-      // Upgrade triggers renotify: true so device alerts user with sound/vibration
       const renotify = isTierUpgrade || tier === ALERT_TIERS.NEAR;
       const payload = buildAlertPayload({
         tier,
@@ -119,87 +186,73 @@ export const dispatchAlertsForTrip = async (tripId, ambulanceCoords) => {
         renotify,
       });
 
-      // Deliver notification via push provider
-      try {
-        await pushProvider.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            endpointHash: sub.endpointHash,
-            keys: sub.keys,
-          },
-          payload,
-          {
-            topic: `ambulance-trip-${tripId}`,
-            urgency: tier === ALERT_TIERS.NEAR ? 'high' : 'normal',
-          }
-        );
+      console.log(`[PushDispatch] Sub #${subHashShort}: Sending Proximity Alert (tier=${tier}, dist=${Math.round(distance)}m)...`);
+      const sendRes = await pushProvider.sendNotification(
+        { endpoint: sub.endpoint, endpointHash: sub.endpointHash, keys: sub.keys },
+        payload,
+        { topic: `trip-${tripId}`, urgency: tier === ALERT_TIERS.NEAR ? 'high' : 'normal' }
+      );
+      console.log(`[PushDispatch] Sub #${subHashShort}: DELIVERED (Status ${sendRes.statusCode || 201})`);
 
-        // Update subscriber state
-        sub.lastNotifiedAt = new Date();
-        sub.lastNotifiedTripId = tripId;
-        sub.lastAlertTier = tier;
+      sub.lastNotifiedAt = new Date();
+      sub.lastNotifiedTripId = tripId;
+      sub.lastAlertTier = tier;
+      await sub.save();
+
+      await AlertDispatch.create({
+        tripId,
+        subscriptionId: sub._id,
+        endpointHash: sub.endpointHash,
+        alertTier: tier,
+        distanceMeters: Math.round(distance),
+        status: 'ACCEPTED',
+        ambulanceLocation: { type: 'Point', coordinates: ambulanceCoords },
+      });
+
+      dispatched++;
+    } catch (sendErr) {
+      console.warn(`[PushDispatch] Sub #${subHashShort}: FAILED (${sendErr.message})`);
+      // Failure handling – do not block other deliveries
+      const fallbackTier = tier || ALERT_TIERS.NEAR;
+      const locPayload =
+        ambulanceCoords && ambulanceCoords.length === 2
+          ? { ambulanceLocation: { type: 'Point', coordinates: ambulanceCoords } }
+          : {};
+
+      if (sendErr.isExpired || sendErr.statusCode === 410 || sendErr.statusCode === 404) {
+        console.log(`[PushDispatch] Sub #${subHashShort}: Subscription expired or unsubscribed on browser. Marked EXPIRED.`);
+        sub.status = 'EXPIRED';
         await sub.save();
-
         await AlertDispatch.create({
           tripId,
           subscriptionId: sub._id,
           endpointHash: sub.endpointHash,
-          alertTier: tier,
-          distanceMeters: Math.round(distance),
-          status: 'ACCEPTED',
-          ambulanceLocation: {
-            type: 'Point',
-            coordinates: ambulanceCoords,
-          },
+          alertTier: fallbackTier,
+          distanceMeters: distance !== null && Number.isFinite(distance) ? Math.round(distance) : null,
+          status: 'EXPIRED',
+          errorDetails: sendErr.message,
+          ...locPayload,
         });
-
-        dispatched++;
-      } catch (sendErr) {
-        if (sendErr.isExpired || sendErr.statusCode === 410 || sendErr.statusCode === 404) {
-          sub.status = 'EXPIRED';
-          await sub.save();
-
-          await AlertDispatch.create({
-            tripId,
-            subscriptionId: sub._id,
-            endpointHash: sub.endpointHash,
-            alertTier: tier,
-            distanceMeters: Math.round(distance),
-            status: 'EXPIRED',
-            errorDetails: sendErr.message,
-            ambulanceLocation: {
-              type: 'Point',
-              coordinates: ambulanceCoords,
-            },
-          });
-        } else {
-          await AlertDispatch.create({
-            tripId,
-            subscriptionId: sub._id,
-            endpointHash: sub.endpointHash,
-            alertTier: tier,
-            distanceMeters: Math.round(distance),
-            status: 'FAILED',
-            errorDetails: sendErr.message,
-            ambulanceLocation: {
-              type: 'Point',
-              coordinates: ambulanceCoords,
-            },
-          });
-        }
-        failed++;
+      } else {
+        await AlertDispatch.create({
+          tripId,
+          subscriptionId: sub._id,
+          endpointHash: sub.endpointHash,
+          alertTier: fallbackTier,
+          distanceMeters: distance !== null && Number.isFinite(distance) ? Math.round(distance) : null,
+          status: 'FAILED',
+          errorDetails: sendErr.message,
+          ...locPayload,
+        });
       }
-    } catch (procErr) {
       failed++;
     }
   }
 
-  console.log(
-    `[PushDispatch] Trip ${tripId}: Dispatched=${dispatched}, Suppressed=${suppressed}, Failed=${failed} (Eligible Subscribers=${eligibleSubscribers.length})`
-  );
-
+  console.log(`[PushDispatch] Trip ${tripId}: Dispatched=${dispatched}, Suppressed=${suppressed}, Failed=${failed}`);
   return { dispatched, suppressed, failed };
 };
+
 
 /**
  * Schedules periodic refresh alerts for an active trip
@@ -293,7 +346,7 @@ export const handleTripEnded = async (tripId) => {
         },
         payload,
         {
-          topic: `ambulance-trip-${tripIdStr}`,
+          topic: `end-${tripIdStr}`,
           urgency: 'normal',
         }
       );

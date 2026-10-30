@@ -1,5 +1,13 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import webpush from 'web-push';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// Ensure backend/.env is loaded whether started from workspace root or backend directory
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+dotenv.config();
 
 /**
  * Validated environment configuration for AmbuRoute Backend
@@ -67,6 +75,7 @@ export const env = {
     privateKey: vapidPrivateKey,
     subject: vapidSubject,
   },
+  NOTIFICATION_DEMO_BROADCAST_ALL: process.env.NOTIFICATION_DEMO_BROADCAST_ALL === 'true',
   ALERTS: {
     outerRadiusMeters: parseInt(process.env.ALERT_OUTER_RADIUS_METERS || '5000', 10),
     nearRadiusMeters: parseInt(process.env.ALERT_NEAR_RADIUS_METERS || '2000', 10),
@@ -74,6 +83,6 @@ export const env = {
     repeatCooldownSeconds: parseInt(process.env.ALERT_REPEAT_COOLDOWN_SECONDS || '20', 10),
     locationMaxAgeSeconds: parseInt(process.env.ROAD_USER_LOCATION_MAX_AGE_SECONDS || '90', 10),
     maxLocationAccuracyMeters: parseInt(process.env.ROAD_USER_MAX_LOCATION_ACCURACY_METERS || '200', 10),
+    pushTtlSeconds: parseInt(process.env.ALERT_PUSH_TTL_SECONDS || '1800', 10),
   },
 };
-

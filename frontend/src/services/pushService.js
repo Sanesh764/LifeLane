@@ -9,6 +9,17 @@ const STORAGE_ENDPOINT_HASH = 'amburoute_endpoint_hash';
 const STORAGE_LOCATION_CONSENT = 'amburoute_location_consent';
 
 let heartbeatTimer = null;
+let inFlightRegistrationPromise = null;
+
+async function deduplicatedRegister(payload) {
+  if (inFlightRegistrationPromise) {
+    return inFlightRegistrationPromise;
+  }
+  inFlightRegistrationPromise = apiClient.registerSubscription(payload).finally(() => {
+    inFlightRegistrationPromise = null;
+  });
+  return inFlightRegistrationPromise;
+}
 
 /**
  * Converts VAPID base64url public key to Uint8Array required by PushManager
@@ -91,6 +102,42 @@ export const pushService = {
   },
 
   /**
+   * Synchronize active browser push subscription with backend
+   * Ensures MongoDB always has a valid, active subscription record on mount
+   */
+  async syncSubscription() {
+    if (!this.isSupported() || this.getPermission() !== 'granted') return null;
+    try {
+      const reg = await this.getServiceWorkerRegistration();
+      const existingSub = await reg?.pushManager?.getSubscription();
+      if (!existingSub) return null;
+
+      const subJson = existingSub.toJSON();
+      const deviceType = /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop';
+      const regRes = await deduplicatedRegister({
+        endpoint: existingSub.endpoint,
+        keys: subJson.keys,
+        notificationConsent: true,
+        locationConsent: this.getStoredLocationConsent(),
+        deviceType,
+      });
+
+      if (regRes.success && regRes.data?.subscription?.endpointHash) {
+        const hash = regRes.data.subscription.endpointHash;
+        try {
+          localStorage.setItem(STORAGE_ENDPOINT_HASH, hash);
+        } catch {
+          // Ignore
+        }
+        return hash;
+      }
+    } catch (e) {
+      console.warn('[pushService] Sync subscription notice:', e);
+    }
+    return this.getStoredEndpointHash();
+  },
+
+  /**
    * Phase G: Enable Ambulance Alerts (Subscribe to Web Push)
    * Requests permission, fetches VAPID key, creates browser subscription, and registers with backend.
    */
@@ -103,16 +150,30 @@ export const pushService = {
     }
 
     try {
-      const permission = await Notification.requestPermission();
+      let permission = this.getPermission();
       if (permission !== 'granted') {
+        try {
+          const permResult = Notification.requestPermission();
+          if (permResult && typeof permResult.then === 'function') {
+            permission = await permResult;
+          } else {
+            permission = await new Promise((resolve) => Notification.requestPermission(resolve));
+          }
+        } catch {
+          permission = this.getPermission();
+        }
+      }
+
+      const finalPermission = permission || this.getPermission();
+      if (finalPermission !== 'granted') {
+        const isDenied = finalPermission === 'denied';
         return {
           success: false,
           error: {
-            code: 'PERMISSION_DENIED',
-            message:
-              permission === 'denied'
-                ? 'Notification permission was denied. Please allow notifications in site settings.'
-                : 'Notification permission was dismissed.',
+            code: isDenied ? 'PERMISSION_DENIED' : 'PERMISSION_DISMISSED',
+            message: isDenied
+              ? 'Notification permission is blocked by your browser site settings. Click the lock/tune icon in your address bar (next to localhost:5173), change Notifications to "Allow", and try again.'
+              : 'Notification permission prompt was dismissed or muted by your browser. To enable alerts: click the lock/settings icon in your address bar (next to the URL), change Notifications to "Allow", and click Subscribe again.',
           },
         };
       }
@@ -134,17 +195,26 @@ export const pushService = {
 
       const reg = await this.getServiceWorkerRegistration();
 
-      // Subscribe via browser PushManager
-      const subscription = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey,
-      });
+      // Check existing subscription first, or create fresh subscription
+      let subscription = null;
+      try {
+        subscription = await reg.pushManager.getSubscription();
+      } catch (getErr) {
+        console.warn('[pushService] getSubscription notice:', getErr);
+      }
+
+      if (!subscription) {
+        subscription = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey,
+        });
+      }
 
       const subJson = subscription.toJSON();
       const deviceType = /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop';
 
-      // Register with backend
-      const regRes = await apiClient.registerSubscription({
+      // Register with backend (deduplicated against any simultaneous syncSubscription call)
+      const regRes = await deduplicatedRegister({
         endpoint: subscription.endpoint,
         keys: subJson.keys,
         notificationConsent: true,
@@ -435,3 +505,7 @@ export const pushService = {
     return apiClient.sendTestNotification({ endpointHash });
   },
 };
+
+if (typeof window !== 'undefined') {
+  window.pushService = pushService;
+}

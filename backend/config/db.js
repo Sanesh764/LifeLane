@@ -1,12 +1,9 @@
+import './env.js';
 import mongoose from 'mongoose';
-import dns from 'dns';
 
-// Configure DNS servers for MongoDB Atlas SRV resolution
-try {
-  dns.setServers(['1.1.1.1', '8.8.8.8']);
-} catch {
-  // Ignore DNS config errors if running in restricted environments
-}
+// Direct replica set fallback for environments where Node c-ares SRV DNS query is refused
+const DIRECT_FALLBACK_URI =
+  'mongodb://sanesh847_db_user:z5GYnVhl7hh9MA9e@ac-nr7zhwh-shard-00-00.gqtcnmj.mongodb.net:27017,ac-nr7zhwh-shard-00-01.gqtcnmj.mongodb.net:27017,ac-nr7zhwh-shard-00-02.gqtcnmj.mongodb.net:27017/test?ssl=true&authSource=admin&retryWrites=true&w=majority';
 
 export const connectDB = async () => {
   const primaryUri = process.env.MONGODB_URI;
@@ -16,7 +13,7 @@ export const connectDB = async () => {
   }
 
   const connectionOptions = {
-    serverSelectionTimeoutMS: 8000,
+    serverSelectionTimeoutMS: 5000,
   };
 
   try {
@@ -24,8 +21,15 @@ export const connectDB = async () => {
     console.log(`[MongoDB] Connected to database: ${conn.connection.host}/${conn.connection.name}`);
     return conn;
   } catch (primaryError) {
-    console.error(`[MongoDB Error] Primary connection failed: ${primaryError.message}`);
-    return null;
+    console.warn(`[MongoDB Warning] Primary SRV connection failed (${primaryError.message}). Attempting direct replica set fallback...`);
+    try {
+      const fallbackConn = await mongoose.connect(DIRECT_FALLBACK_URI, connectionOptions);
+      console.log(`[MongoDB] Connected via direct replica set: ${fallbackConn.connection.host}/${fallbackConn.connection.name}`);
+      return fallbackConn;
+    } catch (fallbackError) {
+      console.error(`[MongoDB Error] Fallback connection also failed: ${fallbackError.message}`);
+      return null;
+    }
   }
 };
 

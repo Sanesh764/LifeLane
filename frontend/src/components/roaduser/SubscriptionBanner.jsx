@@ -53,11 +53,24 @@ export function SubscriptionBanner() {
     const supported = pushService.isSupported();
     setIsPushSupported(supported);
     if (supported) {
-      setBrowserNotificationPerm(pushService.getPermission());
+      const currentPerm = pushService.getPermission();
+      setBrowserNotificationPerm(currentPerm);
       const storedHash = pushService.getStoredEndpointHash();
       if (storedHash) {
         setActiveEndpointHash(storedHash);
       }
+
+      // If browser permission is already granted, verify/sync subscription with backend
+      if (currentPerm === 'granted') {
+        pushService.syncSubscription().then((liveHash) => {
+          if (liveHash) {
+            setActiveEndpointHash(liveHash);
+            setIsSubscribed(true);
+            setSubscriptionPermission('GRANTED');
+          }
+        });
+      }
+
       const consented = pushService.getStoredLocationConsent();
       setIsLocationConsented(consented);
       if (consented && storedHash) {
@@ -89,10 +102,12 @@ export function SubscriptionBanner() {
     setIsSubscribingPush(true);
     try {
       const res = await pushService.subscribeToAlerts();
+      const currentPerm = pushService.getPermission();
+      setBrowserNotificationPerm(currentPerm);
+
       if (res.success) {
         const hash = res.data?.endpointHash || 'Registered';
         setActiveEndpointHash(hash);
-        setBrowserNotificationPerm('granted');
         setSubscriptionPermission('GRANTED');
         setIsSubscribed(true);
         addToast(
@@ -101,12 +116,34 @@ export function SubscriptionBanner() {
           'success'
         );
       } else {
-        addToast('Push Registration Error', res.error?.message || 'Could not register push notifications.', 'warning');
+        if (currentPerm === 'denied') {
+          setSubscriptionPermission('DENIED');
+        }
+        addToast(
+          'Push Registration Notice',
+          res.error?.message || 'Could not register push notifications.',
+          res.error?.code === 'PERMISSION_DENIED' ? 'warning' : 'info'
+        );
       }
     } catch (err) {
       addToast('Push Error', err.message || 'Push registration failed.', 'warning');
     } finally {
       setIsSubscribingPush(false);
+    }
+  };
+
+  // Check and sync latest browser notification permission
+  const handleRefreshPermission = () => {
+    const currentPerm = pushService.getPermission();
+    setBrowserNotificationPerm(currentPerm);
+    if (currentPerm === 'granted') {
+      setSubscriptionPermission('GRANTED');
+      addToast('Permission Allowed', 'Browser notification permission is granted. Click Subscribe to complete registration.', 'success');
+    } else if (currentPerm === 'denied') {
+      setSubscriptionPermission('DENIED');
+      addToast('Permission Blocked', 'Notifications are blocked in site settings. Click the lock/tune icon in your address bar to Allow.', 'warning');
+    } else {
+      addToast('Permission Not Granted', 'Notifications are in Ask/Default state. Click the lock/tune icon in your address bar to Allow.', 'info');
     }
   };
 
@@ -275,14 +312,39 @@ export function SubscriptionBanner() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#0f172a' }}>1. Browser Push Subscription</span>
-              <Badge variant={browserNotificationPerm === 'granted' ? 'clear' : 'neutral'} size="xs">
+              <Badge
+                variant={browserNotificationPerm === 'granted' ? 'clear' : browserNotificationPerm === 'denied' ? 'critical' : 'warning'}
+                size="xs"
+              >
                 {browserNotificationPerm.toUpperCase()}
               </Badge>
             </div>
 
-            <p style={{ fontSize: '0.82rem', color: '#64748b', margin: '4px 0 12px 0' }}>
+            <p style={{ fontSize: '0.82rem', color: '#64748b', margin: '4px 0 10px 0' }}>
               Subscribes this browser to the backend Web Push dispatch engine using standard VAPID key exchange. Works even when this tab is closed.
             </p>
+
+            {browserNotificationPerm !== 'granted' && (
+              <div
+                style={{
+                  background: browserNotificationPerm === 'denied' ? '#fef2f2' : '#fffbeb',
+                  border: `1px solid ${browserNotificationPerm === 'denied' ? '#fecaca' : '#fde68a'}`,
+                  borderRadius: '6px',
+                  padding: '10px',
+                  fontSize: '0.78rem',
+                  color: browserNotificationPerm === 'denied' ? '#991b1b' : '#92400e',
+                  marginBottom: '12px',
+                  lineHeight: '1.45',
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>{browserNotificationPerm === 'denied' ? '🔒 Notifications Blocked in Browser' : '🔔 Enable Notifications in Browser:'}</span>
+                </div>
+                <div>1. Click the <strong>🔒 Lock</strong> or <strong>🎛️ Site Settings</strong> icon in your address bar (next to <code>localhost:5173</code>).</div>
+                <div>2. Set <strong>Notifications</strong> to <strong>Allow</strong>.</div>
+                <div>3. Click <strong>Subscribe to Live Web Push</strong> or <strong>Verify Permission</strong> below.</div>
+              </div>
+            )}
           </div>
 
           {activeEndpointHash ? (
@@ -313,17 +375,28 @@ export function SubscriptionBanner() {
               </div>
             </div>
           ) : (
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              icon={BellIcon}
-              onClick={handleRealPushSubscribe}
-              loading={isSubscribingPush}
-              disabled={!isPushSupported}
-            >
-              {isPushSupported ? 'Subscribe to Live Web Push' : 'Push Unsupported in Browser'}
-            </Button>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                icon={BellIcon}
+                onClick={handleRealPushSubscribe}
+                loading={isSubscribingPush}
+                disabled={!isPushSupported}
+              >
+                {isPushSupported ? 'Subscribe to Live Web Push' : 'Push Unsupported in Browser'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleRefreshPermission}
+                title="Check if browser permission was updated"
+              >
+                Verify Permission
+              </Button>
+            </div>
           )}
         </div>
 

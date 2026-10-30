@@ -189,6 +189,7 @@ export function SimulationMap({ className = '', onSelectIncident }) {
   const {
     activeTrip,
     driverLiveGps,
+    driverLiveRoadName,
     currentRoute,
     currentSegmentIdx,
     tripStatus,
@@ -211,24 +212,43 @@ export function SimulationMap({ className = '', onSelectIncident }) {
   const [shouldRecenter, setShouldRecenter] = useState(false);
 
   // Active ambulance coordinate from real driver GPS or trip location
-  const currentSeg = currentRoute.segments[currentSegmentIdx] || currentRoute.segments[0];
+  const segments = Array.isArray(currentRoute?.segments) ? currentRoute.segments : [];
+  const currentSeg = segments[currentSegmentIdx] || segments[0] || { roadName: 'Emergency Transit Corridor' };
+
   const ambulanceCoordinates = useMemo(() => {
     if (driverLiveGps?.lat && driverLiveGps?.lng && Number.isFinite(driverLiveGps.lat) && Number.isFinite(driverLiveGps.lng)) {
       return [driverLiveGps.lat, driverLiveGps.lng];
     }
     if (activeTrip?.currentLocation?.coordinates && Array.isArray(activeTrip.currentLocation.coordinates)) {
-      return [activeTrip.currentLocation.coordinates[1], activeTrip.currentLocation.coordinates[0]];
+      const [c0, c1] = activeTrip.currentLocation.coordinates;
+      if (Number.isFinite(c0) && Number.isFinite(c1)) {
+        return [c1, c0];
+      }
     }
-    return getCoordinatesForRoad(currentSeg?.roadName);
+    const roadCoords = getCoordinatesForRoad(currentSeg?.roadName);
+    if (Array.isArray(roadCoords) && Number.isFinite(roadCoords[0]) && Number.isFinite(roadCoords[1])) {
+      return roadCoords;
+    }
+    return PATNA_MAP_CENTER;
   }, [driverLiveGps?.lat, driverLiveGps?.lng, activeTrip, currentSeg?.roadName]);
 
-  // Destination coordinates
+  // Destination coordinates with safe finite validation
   const destinationCoordinates = useMemo(() => {
     if (!selectedDestination) return null;
     if (selectedDestination.coordinates && Array.isArray(selectedDestination.coordinates)) {
-      return [selectedDestination.coordinates[1], selectedDestination.coordinates[0]];
+      const [c0, c1] = selectedDestination.coordinates;
+      if (Number.isFinite(c0) && Number.isFinite(c1)) {
+        if (Math.abs(c0) <= 90 && Math.abs(c1) > 90) {
+          return [c0, c1];
+        }
+        return [c1, c0];
+      }
     }
-    return getCoordinatesForRoad(selectedDestination.shortName || selectedDestination.name);
+    const roadCoords = getCoordinatesForRoad(selectedDestination.shortName || selectedDestination.name);
+    if (Array.isArray(roadCoords) && Number.isFinite(roadCoords[0]) && Number.isFinite(roadCoords[1])) {
+      return roadCoords;
+    }
+    return null;
   }, [selectedDestination]);
 
   // User simulated road coordinates
@@ -408,7 +428,7 @@ export function SimulationMap({ className = '', onSelectIncident }) {
           )}
 
           {/* 500-Meter Proximity Alert Envelope around ambulance when active */}
-          {isTripActive && (
+          {isTripActive && ambulanceCoordinates && Number.isFinite(ambulanceCoordinates[0]) && Number.isFinite(ambulanceCoordinates[1]) && (
             <Circle
               center={ambulanceCoordinates}
               radius={500}
@@ -457,7 +477,7 @@ export function SimulationMap({ className = '', onSelectIncident }) {
           })}
 
           {/* Destination Hospital Marker */}
-          {destinationCoordinates && selectedDestination && (
+          {destinationCoordinates && Number.isFinite(destinationCoordinates[0]) && Number.isFinite(destinationCoordinates[1]) && selectedDestination && (
             <Marker
               position={destinationCoordinates}
               icon={createHospitalIcon(selectedDestination.shortName || selectedDestination.name)}
@@ -563,20 +583,20 @@ export function SimulationMap({ className = '', onSelectIncident }) {
           })}
 
           {/* Active Ambulance Marker */}
-          {isTripActive && (
+          {isTripActive && ambulanceCoordinates && Number.isFinite(ambulanceCoordinates[0]) && Number.isFinite(ambulanceCoordinates[1]) && (
             <Marker
               position={ambulanceCoordinates}
-              icon={createAmbulanceIcon(selectedVehicle.callSign, selectedVehicle.vehicleNumber)}
+              icon={createAmbulanceIcon(selectedVehicle?.callSign, selectedVehicle?.vehicleNumber)}
               zIndexOffset={1000}
             >
               <Popup className="custom-leaflet-popup">
                 <div className="popup-inner">
                   <div className="popup-header-tag text-red">ACTIVE EMERGENCY VEHICLE</div>
-                  <div className="popup-title">{selectedVehicle.callSign}</div>
+                  <div className="popup-title">{selectedVehicle?.callSign || 'Ambulance Unit'}</div>
                   <div className="popup-body">
-                    Vehicle: <strong>{selectedVehicle.vehicleNumber}</strong><br />
+                    Vehicle: <strong>{selectedVehicle?.vehicleNumber || 'Emergency 108'}</strong><br />
                     En Route to: <strong>{selectedDestination?.shortName || selectedDestination?.name || 'Assigned Center'}</strong><br />
-                    Current Corridor: <strong>{currentSeg.roadName}</strong>
+                    Current Corridor: <strong>{currentSeg?.roadName || 'Emergency Transit Corridor'}</strong>
                   </div>
                 </div>
               </Popup>
@@ -612,24 +632,37 @@ export function SimulationMap({ className = '', onSelectIncident }) {
         </div>
       )}
 
-      {/* Map Legend & Prototype Note */}
+      {/* Map Legend & Dynamic Route Context */}
       <div className="simulation-map-legend">
         <div className="legend-items-row">
-          <div className="legend-item">
-            <span className="legend-swatch legend-swatch--primary" />
-            <span>Active Corridor (Bailey & Fraser Rd)</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-swatch legend-swatch--alt" />
-            <span>Bypass Corridor (Atal Path & Ganga Path)</span>
-          </div>
+          {isTripActive || currentRoute?.isLive ? (
+            <>
+              <div className="legend-item">
+                <span className="legend-swatch legend-swatch--primary" style={{ backgroundColor: '#DC2626' }} />
+                <span>Active Corridor ({driverLiveRoadName || currentRoute?.name || 'Emergency Transit Corridor'})</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-swatch legend-swatch--destination" />
+                <span>Destination ({selectedDestination?.shortName || selectedDestination?.name || 'Hospital Trauma Base'})</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="legend-item">
+                <span className="legend-swatch legend-swatch--primary" />
+                <span>Corridor ({currentRoute?.name || 'Regional Emergency Corridor'})</span>
+              </div>
+              {selectedDestination && (
+                <div className="legend-item">
+                  <span className="legend-swatch legend-swatch--destination" />
+                  <span>Destination ({selectedDestination?.shortName || selectedDestination?.name})</span>
+                </div>
+              )}
+            </>
+          )}
           <div className="legend-item">
             <span className="legend-swatch legend-swatch--blocked" />
             <span>Reported Hazard</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-swatch legend-swatch--destination" />
-            <span>PMCH Trauma Base</span>
           </div>
           <div className="legend-item">
             <span className="legend-swatch legend-swatch--radius" />

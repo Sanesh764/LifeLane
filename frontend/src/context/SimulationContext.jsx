@@ -196,8 +196,13 @@ export function SimulationProvider({ children }) {
                 }
 
                 // Construct dynamic live route from restored backend trip
-                const originPt = trip.currentLocation?.coordinates || trip.initialLocation?.coordinates;
-                const destPt = trip.destination?.location?.coordinates;
+                const originPt =
+                  trip.currentLocation?.coordinates ||
+                  trip.origin?.coordinates ||
+                  trip.initialLocation?.coordinates;
+                const destPt =
+                  trip.destination?.location?.coordinates ||
+                  trip.destination?.coordinates;
                 if (originPt && destPt) {
                   const distMeters = calculateDistanceMeters([originPt[1], originPt[0]], [destPt[1], destPt[0]]) || 5000;
                   const distKm = Number((distMeters / 1000).toFixed(1));
