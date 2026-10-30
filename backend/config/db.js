@@ -2,8 +2,7 @@ import './env.js';
 import mongoose from 'mongoose';
 
 // Direct replica set fallback for environments where Node c-ares SRV DNS query is refused
-const DIRECT_FALLBACK_URI =
-  'mongodb://sanesh847_db_user:z5GYnVhl7hh9MA9e@ac-nr7zhwh-shard-00-00.gqtcnmj.mongodb.net:27017,ac-nr7zhwh-shard-00-01.gqtcnmj.mongodb.net:27017,ac-nr7zhwh-shard-00-02.gqtcnmj.mongodb.net:27017/test?ssl=true&authSource=admin&retryWrites=true&w=majority';
+const DIRECT_FALLBACK_URI =process.env.MONGODB_URL2;
 
 export const connectDB = async () => {
   const primaryUri = process.env.MONGODB_URI;
