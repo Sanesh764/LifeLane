@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import {
@@ -10,7 +10,6 @@ import {
   Circle,
   useMap,
 } from 'react-leaflet';
-import { Badge } from '../common/Badge.jsx';
 import {
   PRIMARY_ROUTE_COORDINATES,
   ALTERNATIVE_ROUTE_COORDINATES,
@@ -19,12 +18,20 @@ import {
 import {
   RouteIcon,
   AlertTriangleIcon,
-  CheckCircle2Icon,
-  OctagonAlertIcon,
-  ShieldCheckIcon,
-  HospitalIcon,
   SparklesIcon,
 } from '../common/Icons.jsx';
+
+// Fix Leaflet default marker asset paths in Vite
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: null,
+  iconUrl: null,
+  shadowUrl: null,
+});
+
+// Fixed coordinate constants outside component to guarantee stable references
+const OVERVIEW_MAP_CENTER = [25.6200, 85.1320];
+const OVERVIEW_MAP_ZOOM = 13;
 
 // Custom icons for the overview map
 const ambulanceOriginIcon = L.divIcon({
@@ -80,23 +87,29 @@ const hazardMarkerIcon = (label, color = '#EF4444', iconText = '!') =>
     popupAnchor: [0, -13],
   });
 
-function MapRecenterer({ center, zoom }) {
+/**
+ * MapInitController: Invalidate size safely once on mount after container layout finishes
+ */
+function MapInitController() {
   const map = useMap();
-  React.useEffect(() => {
-    if (center) {
-      map.setView(center, zoom);
-      map.invalidateSize();
-    }
-  }, [center, zoom, map]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        if (map && typeof map.invalidateSize === 'function') {
+          map.invalidateSize();
+        }
+      } catch (err) {
+        // Safe catch if unmounted during animation
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [map]);
   return null;
 }
 
-export function OverviewRouteMap() {
+function OverviewRouteMapComponent() {
   const [selectedRoute, setSelectedRoute] = useState('recommended'); // 'recommended' | 'congested' | 'both'
   const [tileError, setTileError] = useState(false);
-
-  const mapCenter = [25.6200, 85.1320];
-  const mapZoom = 13;
 
   return (
     <div className="overview-route-map-card">
@@ -149,8 +162,8 @@ export function OverviewRouteMap() {
 
       <div className="overview-map-canvas-wrap">
         <MapContainer
-          center={mapCenter}
-          zoom={mapZoom}
+          center={OVERVIEW_MAP_CENTER}
+          zoom={OVERVIEW_MAP_ZOOM}
           scrollWheelZoom={false}
           className="overview-leaflet-container"
           attributionControl={true}
@@ -163,7 +176,7 @@ export function OverviewRouteMap() {
               tileerror: () => setTileError(true),
             }}
           />
-          <MapRecenterer center={mapCenter} zoom={mapZoom} />
+          <MapInitController />
 
           {/* AI Recommended Route Polyline (Emerald Green) */}
           {(selectedRoute === 'recommended' || selectedRoute === 'both') && (
@@ -342,3 +355,5 @@ export function OverviewRouteMap() {
     </div>
   );
 }
+
+export const OverviewRouteMap = memo(OverviewRouteMapComponent);

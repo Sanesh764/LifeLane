@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './OverviewPage.css';
 import { useSimulation } from '../context/useSimulation.js';
 import { OverviewRouteMap } from '../components/map/OverviewRouteMap.jsx';
+import { ErrorBoundary } from '../components/common/ErrorBoundary.jsx';
 import {
   SirenIcon,
   AmbulanceIcon,
@@ -25,6 +26,7 @@ import {
   HospitalIcon,
   NavigationIcon,
   CheckIcon,
+  ArrowUpIcon,
 } from '../components/common/Icons.jsx';
 
 /**
@@ -61,26 +63,37 @@ export function OverviewPage() {
 
   // Track active scroll section
   useEffect(() => {
-    const handleScroll = () => {
-      setShowBackToTop(window.scrollY > 400);
-      const sections = [
-        'hero',
-        'how-it-works',
-        'ai-routing',
-        'features',
-        'notifications',
-        'community',
-        'stakeholders',
-        'impact',
-      ];
-      const scrollPos = window.scrollY + 160;
+    let ticking = false;
 
-      for (let i = sections.length - 1; i >= 0; i--) {
-        const el = document.getElementById(sections[i]);
-        if (el && el.offsetTop <= scrollPos) {
-          setActiveSection(sections[i]);
-          break;
-        }
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const shouldShow = window.scrollY > 400;
+          setShowBackToTop((prev) => (prev !== shouldShow ? shouldShow : prev));
+
+          const sections = [
+            'hero',
+            'how-it-works',
+            'ai-routing',
+            'features',
+            'notifications',
+            'community',
+            'stakeholders',
+            'impact',
+          ];
+          const scrollPos = window.scrollY + 160;
+
+          for (let i = sections.length - 1; i >= 0; i--) {
+            const el = document.getElementById(sections[i]);
+            if (el && el.offsetTop <= scrollPos) {
+              const nextSection = sections[i];
+              setActiveSection((prev) => (prev !== nextSection ? nextSection : prev));
+              break;
+            }
+          }
+          ticking = false;
+        });
+        ticking = true;
       }
     };
 
@@ -486,7 +499,18 @@ export function OverviewPage() {
         </div>
 
         {/* Embedded Interactive Route Map */}
-        <OverviewRouteMap />
+        <ErrorBoundary fallback={
+          <div className="overview-route-map-card" style={{ padding: '2.5rem', textAlign: 'center', background: '#ffffff', borderRadius: '16px', border: '1px solid #DCE7DF' }}>
+            <h4 style={{ fontFamily: 'var(--font-display)', color: '#0F291E', margin: '0 0 0.5rem 0' }}>
+              Patna Emergency Corridor: AI Alternative Detour
+            </h4>
+            <p style={{ color: '#63756B', margin: 0 }}>
+              AI Detour via Atal Path Expressway (14 min · 6.8 km) saves ~8-12 minutes compared to congested Bailey Road (26 min · 5.4 km).
+            </p>
+          </div>
+        }>
+          <OverviewRouteMap />
+        </ErrorBoundary>
 
         {/* Side-by-Side Detailed Route Comparison */}
         <div className="ai-comparison-grid">

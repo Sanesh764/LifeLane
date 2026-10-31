@@ -16,6 +16,9 @@ export class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
       return (
         <div style={{ padding: '32px', textAlign: 'center', background: '#fff', borderRadius: '8px', margin: '24px', border: '1px solid #e2e8f0' }}>
           <h2 style={{ color: '#0F766E', marginBottom: '8px', fontSize: '1.25rem' }}>Interface Recovered</h2>
