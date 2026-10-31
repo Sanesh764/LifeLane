@@ -2,9 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useSimulation } from '../../context/useSimulation.js';
 import {
   AmbulanceIcon,
-  Volume2Icon,
-  VolumeXIcon,
-  RefreshCwIcon,
   ShieldCheckIcon,
   LogOutIcon,
   MenuIcon,
@@ -12,7 +9,7 @@ import {
 } from '../common/Icons.jsx';
 
 /**
- * Header: Clean, Uncluttered Operations Navigation
+ * Header: Clean, Professional Operations Navigation
  *
  * Provides distinct views for:
  * - Public Overview (landing experience)
@@ -30,9 +27,6 @@ export function Header() {
     activeTab,
     setActiveTab,
     tripStatus,
-    isMuted,
-    setIsMuted,
-    resetSimulation,
     currentUser,
     isAuthenticated,
     logout,
@@ -74,7 +68,7 @@ export function Header() {
     if (isAuthenticated) {
       handleNavClick('driver/home');
     } else {
-      handleNavClick('login');
+      handleNavClick('login/driver');
     }
   };
 
@@ -137,7 +131,7 @@ export function Header() {
 
         {/* Global Operational Controls & Authentication */}
         <div className="app-header__actions">
-          {/* Desktop Driver Auth Button / Pill */}
+          {/* Desktop Driver / Public Auth Button */}
           <div className="header-auth-desktop">
             {isAuthenticated ? (
               <div className="header-driver-profile">
@@ -172,28 +166,6 @@ export function Header() {
                 <span>Sign In / Register</span>
               </button>
             )}
-          </div>
-
-          {/* Quick Voice Assistance & Demo Reset Toggles */}
-          <div className="header-icon-toggles">
-            <button
-              type="button"
-              className={`action-icon-btn ${isMuted ? 'action-icon-btn--muted' : ''}`}
-              onClick={() => setIsMuted(!isMuted)}
-              title={isMuted ? 'Unmute voice route assistance' : 'Mute voice route assistance'}
-              aria-label={isMuted ? 'Unmute voice route assistance' : 'Mute voice route assistance'}
-            >
-              {isMuted ? <VolumeXIcon size={16} /> : <Volume2Icon size={16} />}
-            </button>
-            <button
-              type="button"
-              className="action-icon-btn"
-              onClick={resetSimulation}
-              title="Reset demonstration state"
-              aria-label="Reset demonstration state"
-            >
-              <RefreshCwIcon size={16} />
-            </button>
           </div>
 
           {/* Mobile Menu Hamburger Toggle (< 900px) */}

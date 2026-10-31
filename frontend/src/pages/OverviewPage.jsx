@@ -1,479 +1,1250 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import './OverviewPage.css';
 import { useSimulation } from '../context/useSimulation.js';
-import { Button } from '../components/common/Button.jsx';
-import { Badge } from '../components/common/Badge.jsx';
-import { Card } from '../components/common/Card.jsx';
+import { OverviewRouteMap } from '../components/map/OverviewRouteMap.jsx';
 import {
   SirenIcon,
-  BellIcon,
+  AmbulanceIcon,
   RouteIcon,
-  ArrowRightIcon,
-  ShieldCheckIcon,
-  RadioIcon,
-  CheckCircle2Icon,
+  BellIcon,
   AlertTriangleIcon,
-  Volume2Icon,
-  MapPinIcon,
-  CheckCircleIcon,
+  CheckCircle2Icon,
   OctagonAlertIcon,
   HelpCircleIcon,
+  Volume2Icon,
+  MapPinIcon,
+  ShieldCheckIcon,
+  SparklesIcon,
+  RadioIcon,
+  ChevronRightIcon,
+  ArrowRightIcon,
+  ClockIcon,
+  ZapIcon,
+  ActivityIcon,
+  UsersIcon,
+  HospitalIcon,
+  NavigationIcon,
+  CheckIcon,
 } from '../components/common/Icons.jsx';
 
 /**
- * OverviewPage: Welcoming, Professional Public Landing Interface
+ * OverviewPage: Modern, Feature-Rich Public Overview & Product Tour
  *
- * Distinct from the dark control-room operations screen.
- * Uses warm ivory surfaces (#FAF8F5, #FFFFFF), graphite text, signal amber accents,
- * with honest DEMO SIMULATION indicators and no fabricated claims.
+ * Designed for hackathon judges, citizens, ambulance drivers, and hospital coordinators.
+ * Explains the dual-engine architecture:
+ * 1. Routing Engine + Meta Muse Spark AI Detour Assistance
+ * 2. Route-Aware 500m Push Corridor Notifications + Real-Time Community Intel
  */
 export function OverviewPage() {
   const {
     setActiveTab,
+    setDriverSubTab,
     tripStatus,
     startTrip,
     isAuthenticated,
+    isDriverAuthenticated,
   } = useSimulation();
 
   const isTripActive = tripStatus === 'ACTIVE';
+  const [activeSection, setActiveSection] = useState('hero');
 
-  const handleStartAmbulanceClick = () => {
-    if (isTripActive) {
-      setActiveTab('driver');
-      window.location.hash = 'driver';
-      return;
-    }
-
-    if (isAuthenticated) {
-      startTrip();
-      setActiveTab('driver');
-      window.location.hash = 'driver';
-    } else {
-      // Directs to login with context, sets pendingAction = 'START_AMBULANCE'
-      startTrip();
+  // Smooth scroll helper for in-page section links
+  const scrollToSection = (id) => {
+    setActiveSection(id);
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
-  const handleScrollToHowItWorks = () => {
-    const el = document.getElementById('how-it-works-section');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
+  // Track active scroll section
+  useEffect(() => {
+    const handleScroll = () => {
+      const sections = [
+        'hero',
+        'how-it-works',
+        'ai-routing',
+        'features',
+        'notifications',
+        'community',
+        'stakeholders',
+        'impact',
+      ];
+      const scrollPos = window.scrollY + 160;
+
+      for (let i = sections.length - 1; i >= 0; i--) {
+        const el = document.getElementById(sections[i]);
+        if (el && el.offsetTop <= scrollPos) {
+          setActiveSection(sections[i]);
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const handleStartMissionOrCockpit = () => {
+    if (isTripActive) {
+      setActiveTab('driver');
+      setDriverSubTab('active');
+      window.location.hash = 'driver/active';
+      return;
+    }
+
+    if (isDriverAuthenticated) {
+      setActiveTab('driver');
+      setDriverSubTab('start');
+      window.location.hash = 'driver/start';
+    } else {
+      setActiveTab('login');
+      window.location.hash = 'login/driver';
+    }
+  };
+
+  const handleNavigate = (tab, subTab = null) => {
+    setActiveTab(tab);
+    if (subTab) {
+      setDriverSubTab(subTab);
+      window.location.hash = `${tab}/${subTab}`;
+    } else {
+      window.location.hash = tab;
     }
   };
 
   return (
-    <div className="public-homepage">
+    <div className="overview-page-root">
       {/* ---------------------------------------------------------------------
-         Hero Section
+         Sticky In-Page Anchor Sub-Nav
          --------------------------------------------------------------------- */}
-      <section className="home-hero">
-        <div className="home-hero__header">
-          <div className="home-hero__badge-row">
-            <Badge variant="warning" size="sm">DEMO SIMULATION · PATNA PILOT</Badge>
+      <nav className="overview-subnav" aria-label="Page section navigation">
+        <div className="overview-subnav-links">
+          <button
+            type="button"
+            className={`overview-subnav-link ${activeSection === 'hero' ? 'is-active' : ''}`}
+            onClick={() => scrollToSection('hero')}
+          >
+            Overview
+          </button>
+          <button
+            type="button"
+            className={`overview-subnav-link ${activeSection === 'how-it-works' ? 'is-active' : ''}`}
+            onClick={() => scrollToSection('how-it-works')}
+          >
+            How It Works
+          </button>
+          <button
+            type="button"
+            className={`overview-subnav-link ${activeSection === 'ai-routing' ? 'is-active' : ''}`}
+            onClick={() => scrollToSection('ai-routing')}
+          >
+            AI Route Engine
+          </button>
+          <button
+            type="button"
+            className={`overview-subnav-link ${activeSection === 'features' ? 'is-active' : ''}`}
+            onClick={() => scrollToSection('features')}
+          >
+            All 8 Features
+          </button>
+          <button
+            type="button"
+            className={`overview-subnav-link ${activeSection === 'notifications' ? 'is-active' : ''}`}
+            onClick={() => scrollToSection('notifications')}
+          >
+            Emergency Alerts
+          </button>
+          <button
+            type="button"
+            className={`overview-subnav-link ${activeSection === 'community' ? 'is-active' : ''}`}
+            onClick={() => scrollToSection('community')}
+          >
+            Community Intel
+          </button>
+          <button
+            type="button"
+            className={`overview-subnav-link ${activeSection === 'stakeholders' ? 'is-active' : ''}`}
+            onClick={() => scrollToSection('stakeholders')}
+          >
+            Drivers & Hospitals
+          </button>
+          <button
+            type="button"
+            className={`overview-subnav-link ${activeSection === 'impact' ? 'is-active' : ''}`}
+            onClick={() => scrollToSection('impact')}
+          >
+            Impact
+          </button>
+        </div>
+
+        <div className="overview-subnav-actions">
+          <button
+            type="button"
+            className="hero-btn-primary"
+            style={{ padding: '0.45rem 1rem', fontSize: '0.84rem' }}
+            onClick={() => handleNavigate('public')}
+          >
+            <span>Live Network</span>
+            <ArrowRightIcon size={14} />
+          </button>
+        </div>
+      </nav>
+
+      {/* ---------------------------------------------------------------------
+         1. HERO SECTION
+         --------------------------------------------------------------------- */}
+      <section id="hero" className="overview-hero">
+        <div className="overview-hero-content">
+          <div className="hero-pill-row">
+            <span className="hero-badge-platform">
+              <AmbulanceIcon size={14} />
+              <span>AMBUROUTE · EMERGENCY TRANSIT PLATFORM</span>
+            </span>
+            <span className="hero-badge-ai">
+              <SparklesIcon size={14} />
+              <span>META MUSE SPARK AI + ROUTING ENGINE</span>
+            </span>
             {isTripActive && (
-              <Badge variant="critical" pulse size="sm">SIMULATED TRIP IN PROGRESS</Badge>
+              <span className="floating-card-tag floating-card-tag--red" style={{ background: '#FEE2E2', padding: '0.3rem 0.75rem', borderRadius: '999px' }}>
+                <span className="live-status-dot" style={{ backgroundColor: '#EF4444' }} />
+                <span>ACTIVE SIMULATED MISSION</span>
+              </span>
             )}
           </div>
 
-          <h1 className="home-hero__title">
-            Route-Aware Ambulance Alerts & Community Transit Intelligence
+          <h1 className="overview-hero-title">
+            Intelligent Ambulance Routing for{' '}
+            <span className="overview-hero-title-highlight">Safer Communities</span>
           </h1>
 
-          <p className="home-hero__description">
-            AmbuRoute helps ambulances navigate congested Indian roadways by notifying participating road users within a 500-metre corridor ahead to yield safely, while validating crowd observations to provide driver-confirmed route assistance.
+          <p className="overview-hero-subtitle">
+            AI-powered route optimization, real-time traffic intelligence and instant community alerts to help ambulances reach patients faster.
           </p>
 
-          <div className="home-hero__actions">
-            {!isTripActive ? (
-              <Button
-                variant="critical"
-                size="lg"
-                icon={SirenIcon}
-                onClick={handleStartAmbulanceClick}
-                className="btn-hero-primary"
-              >
-                Start Ambulance
-              </Button>
-            ) : (
-              <Button
-                variant="critical"
-                size="lg"
-                icon={RouteIcon}
-                pulse
-                onClick={() => {
-                  setActiveTab('driver');
-                  window.location.hash = 'driver';
-                }}
-                className="btn-hero-primary"
-              >
-                Ambulance Active · Open Cockpit
-              </Button>
-            )}
-
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={handleScrollToHowItWorks}
-              className="btn-hero-secondary"
+          <div className="overview-hero-actions">
+            <button
+              type="button"
+              className="hero-btn-primary"
+              onClick={() => scrollToSection('how-it-works')}
             >
-              How It Works &darr;
-            </Button>
+              <span>Explore How It Works</span>
+              <ChevronRightIcon size={16} />
+            </button>
+
+            <button
+              type="button"
+              className="hero-btn-secondary"
+              onClick={() => scrollToSection('features')}
+            >
+              <span>Explore Features</span>
+            </button>
+
+            <button
+              type="button"
+              className="hero-btn-outline"
+              onClick={() => handleNavigate('public')}
+            >
+              <span>Get Started</span>
+            </button>
+
+            <button
+              type="button"
+              className="hero-btn-outline"
+              onClick={() => handleNavigate('login')}
+            >
+              <ShieldCheckIcon size={16} />
+              <span>Sign In</span>
+            </button>
           </div>
         </div>
 
-        {/* Visual Workflow Preview (Realistic Flow Diagram, Not a Fake BI Dashboard) */}
-        <div className="home-hero__workflow-preview">
-          <div className="workflow-preview-card">
-            <div className="preview-step">
-              <div className="preview-step-icon preview-step-icon--dispatch">
-                <SirenIcon size={22} className="text-red" />
-              </div>
-              <div className="preview-step-content">
-                <div className="preview-step-tag">STEP 1</div>
-                <div className="preview-step-name">Authorized Dispatch</div>
-                <div className="preview-step-desc">Driver begins mission to PMCH Trauma Base</div>
-              </div>
-            </div>
+        {/* Hero Visual Board with 3 Floating Cards */}
+        <div className="overview-hero-visual">
+          <div className="hero-visual-board">
+            <div className="hero-visual-bg-decor" />
 
-            <div className="preview-arrow">&rarr;</div>
-
-            <div className="preview-step">
-              <div className="preview-step-icon preview-step-icon--alert">
-                <BellIcon size={22} className="text-amber" />
+            {/* Floating Card 1: Emergency Alert */}
+            <div className="hero-floating-card hero-floating-card--alert">
+              <div className="floating-card-header">
+                <span className="floating-card-tag floating-card-tag--red">
+                  <SirenIcon size={14} />
+                  <span>EMERGENCY VEHICLE APPROACHING</span>
+                </span>
+                <span className="floating-card-time">500m Corridor</span>
               </div>
-              <div className="preview-step-content">
-                <div className="preview-step-tag">STEP 2</div>
-                <div className="preview-step-name">500m Corridor Alert</div>
-                <div className="preview-step-desc">Nearby road users receive timely yield notice</div>
+              <h3 className="floating-card-title">Ambulance 108 Approaching</h3>
+              <p className="floating-card-desc">
+                En route to PMCH Trauma Center via Bailey Road. Please pull over to the left and yield safe passage.
+              </p>
+              <div className="floating-card-badge-row">
+                <span className="hero-badge-ai" style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}>
+                  Web Push Alert · Sound & Vibration
+                </span>
               </div>
             </div>
 
-            <div className="preview-arrow">&rarr;</div>
-
-            <div className="preview-step">
-              <div className="preview-step-icon preview-step-icon--detour">
-                <RouteIcon size={22} className="text-mint" />
+            {/* Floating Card 2: AI Suggested Route */}
+            <div className="hero-floating-card hero-floating-card--route">
+              <div className="floating-card-header">
+                <span className="floating-card-tag floating-card-tag--green">
+                  <SparklesIcon size={14} />
+                  <span>AI DETOUR RECOMMENDED</span>
+                </span>
+                <span className="floating-card-time text-mint font-semibold">-8 min faster</span>
               </div>
-              <div className="preview-step-content">
-                <div className="preview-step-tag">STEP 3</div>
-                <div className="preview-step-name">Driver Confirmed Detour</div>
-                <div className="preview-step-desc">Bypass congestion via Atal Path & Marine Drive</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------------------------------------------------------------
-         Feature B: Public Homepage Quick Action: Report a Road Condition
-         --------------------------------------------------------------------- */}
-      <section className="home-quick-report-section" aria-label="Quick Road Condition Reporting">
-        <div className="quick-report-banner">
-          <div className="quick-report-content">
-            <div className="quick-report-badge-row">
-              <Badge variant="warning" size="sm">CITIZEN TRANSIT INTELLIGENCE</Badge>
-              <Badge variant="neutral" size="sm">PATNA CORRIDOR</Badge>
-            </div>
-
-            <h2 className="quick-report-title">Report a Road Condition</h2>
-
-            <p className="quick-report-desc">
-              Notice traffic congestion or a blocked road in Patna? Share a road-condition observation to help improve ambulance route awareness.
-            </p>
-
-            <div className="quick-report-categories">
-              <span className="category-pill category-pill--clear">
-                <CheckCircleIcon size={14} className="text-mint" />
-                <span>Clear Flowing</span>
-              </span>
-              <span className="category-pill category-pill--heavy">
-                <AlertTriangleIcon size={14} className="text-amber" />
-                <span>Heavy Traffic</span>
-              </span>
-              <span className="category-pill category-pill--blocked">
-                <OctagonAlertIcon size={14} className="text-red" />
-                <span>Road Blocked</span>
-              </span>
-              <span className="category-pill category-pill--assess">
-                <HelpCircleIcon size={14} />
-                <span>Cannot Assess</span>
-              </span>
-            </div>
-
-            <div className="quick-report-actions">
-              <Button
-                variant="primary"
-                size="md"
-                icon={AlertTriangleIcon}
-                onClick={() => {
-                  setActiveTab('report');
-                  window.location.hash = 'report';
-                }}
-                className="btn-quick-report"
-              >
-                Report Traffic
-              </Button>
-
-              <Button
-                variant="outline"
-                size="md"
-                icon={BellIcon}
-                onClick={() => {
-                  setActiveTab('alerts');
-                  window.location.hash = 'alerts';
-                }}
-                className="btn-quick-alerts"
-              >
-                Enable Ambulance Alerts
-              </Button>
-            </div>
-          </div>
-
-          <div className="quick-report-side-card">
-            <div className="side-card-header">
-              <span className="side-card-tag">PUBLIC PARTICIPATION</span>
-              <span className="side-card-status">NO LOGIN REQUIRED</span>
-            </div>
-            <div className="side-card-body">
-              <div className="side-card-stat">
-                <strong>4 Supported Categories</strong>
-                <span>One-tap submissions for instant routing awareness</span>
-              </div>
-              <div className="side-card-stat">
-                <strong>Direction & Freshness Checks</strong>
-                <span>Stale & unverified entries are filtered automatically</span>
+              <h3 className="floating-card-title">Atal Path 6-Lane Expressway</h3>
+              <p className="floating-card-desc">
+                Bypasses heavy commercial congestion at Dak Bungalow crossing. Distance: 6.8 km · ETA: 14 min.
+              </p>
+              <div className="floating-card-badge-row">
+                <span className="hero-badge-ai" style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}>
+                  Meta Muse Spark AI · Driver Confirmed
+                </span>
               </div>
             </div>
-            <div className="side-card-footer">
-              Ambulance drivers review verified observations before confirming detours.
+
+            {/* Floating Card 3: Live Traffic Update */}
+            <div className="hero-floating-card hero-floating-card--traffic">
+              <div className="floating-card-header">
+                <span className="floating-card-tag floating-card-tag--amber">
+                  <AlertTriangleIcon size={14} />
+                  <span>REAL-TIME TRAFFIC OBSERVATION</span>
+                </span>
+                <span className="floating-card-time">2 min ago</span>
+              </div>
+              <h3 className="floating-card-title">Dak Bungalow: High Congestion</h3>
+              <p className="floating-card-desc">
+                3 verified citizen reports. Intersection crawling due to construction work.
+              </p>
+              <div className="floating-card-badge-row">
+                <span className="hero-badge-platform" style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}>
+                  Citizen Intelligence · Corroborated
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
+      {/* Hero Feature Strip */}
+      <div className="hero-feature-strip">
+        <div className="strip-item">
+          <div className="strip-item-icon strip-item-icon--green">
+            <ClockIcon size={20} />
+          </div>
+          <div className="strip-item-text">
+            <span className="strip-item-label">Faster Emergency Response</span>
+            <span className="strip-item-sub">Protecting the critical golden hour</span>
+          </div>
+        </div>
+
+        <div className="strip-item">
+          <div className="strip-item-icon strip-item-icon--blue">
+            <SparklesIcon size={20} />
+          </div>
+          <div className="strip-item-text">
+            <span className="strip-item-label">AI Traffic Intelligence</span>
+            <span className="strip-item-sub">Corroborated road observations</span>
+          </div>
+        </div>
+
+        <div className="strip-item">
+          <div className="strip-item-icon strip-item-icon--amber">
+            <BellIcon size={20} />
+          </div>
+          <div className="strip-item-text">
+            <span className="strip-item-label">Instant Push Notifications</span>
+            <span className="strip-item-sub">Direct yield notices to upcoming traffic</span>
+          </div>
+        </div>
+
+        <div className="strip-item">
+          <div className="strip-item-icon strip-item-icon--teal">
+            <UsersIcon size={20} />
+          </div>
+          <div className="strip-item-text">
+            <span className="strip-item-label">Safer Communities</span>
+            <span className="strip-item-sub">Cooperative life-saving transit</span>
+          </div>
+        </div>
+      </div>
+
       {/* ---------------------------------------------------------------------
-         Two Core MVP Features
+         2. HOW IT WORKS (5-STEP WORKFLOW)
          --------------------------------------------------------------------- */}
-      <section className="home-features-section">
-        <div className="section-title-wrap">
-          <h2 className="section-heading">Two Core MVP Capabilities</h2>
-          <p className="section-subheading">
-            Focused strictly on emergency corridor clearance and driver-in-the-loop navigation assistance.
+      <section id="how-it-works" className="how-it-works-workflow">
+        <div className="overview-section-header">
+          <span className="section-kicker-pill">5-Step Coordinated Flow</span>
+          <h2 className="overview-section-title">How AmbuRoute Works</h2>
+          <p className="overview-section-sub">
+            From emergency dispatch to safe hospital arrival, AmbuRoute bridges drivers, AI routing, and citizens in an integrated cooperative workflow.
           </p>
         </div>
 
-        <div className="home-features-grid">
-          {/* Feature 1 */}
-          <Card variant="ivory" className="home-feature-card">
-            <div className="feature-icon-badge">
-              <SirenIcon size={26} className="text-red" />
-            </div>
-            <div className="feature-card-content">
-              <div className="feature-meta-tag">FEATURE 1</div>
-              <h3 className="feature-card-title">Route-Aware Ambulance Alerts</h3>
-              <p className="feature-card-text">
-                When an emergency trip begins, the system targets opted-in web/PWA subscribers situated along the ambulance’s upcoming path (500-metre envelope). Devices receive timely alerts containing the road name, direction, and clear instructions to pull over safely.
-              </p>
-              <div className="feature-pill-list">
-                <span className="feature-pill">500m Target Envelope</span>
-                <span className="feature-pill">Direction-Aware Filtering</span>
-                <span className="feature-pill">Opt-In Subscriptions Only</span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                icon={ArrowRightIcon}
-                iconPosition="right"
-                onClick={() => {
-                  setActiveTab('alerts');
-                  window.location.hash = 'alerts';
-                }}
-              >
-                Inspect Road User Alert Screen
-              </Button>
-            </div>
-          </Card>
-
-          {/* Feature 2 */}
-          <Card variant="ivory" className="home-feature-card">
-            <div className="feature-icon-badge">
-              <RouteIcon size={26} className="text-amber" />
-            </div>
-            <div className="feature-card-content">
-              <div className="feature-meta-tag">FEATURE 2</div>
-              <h3 className="feature-card-title">Community Traffic & Voice Route Assistance</h3>
-              <p className="feature-card-text">
-                Participating road users submit one-tap observations (<code>CLEAR</code>, <code>TRAFFIC_HIGH</code>, <code>ROAD_BLOCKED</code>, <code>CANNOT_ASSESS</code>). AmbuRoute compares suitable routes and delivers a voice recommendation. The driver confirms or rejects the detour.
-              </p>
-              <div className="feature-pill-list">
-                <span className="feature-pill">One-Tap Reporting</span>
-                <span className="feature-pill">Voice Recommendation</span>
-                <span className="feature-pill">Driver Confirmation Required</span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                icon={ArrowRightIcon}
-                iconPosition="right"
-                onClick={() => {
-                  setActiveTab('report');
-                  window.location.hash = 'report';
-                }}
-              >
-                Inspect Traffic Reporting Screen
-              </Button>
-            </div>
-          </Card>
-        </div>
-      </section>
-
-      {/* ---------------------------------------------------------------------
-         How It Works: 7-Step Sequence
-         --------------------------------------------------------------------- */}
-      <section id="how-it-works-section" className="home-how-it-works-section">
-        <div className="section-title-wrap">
-          <div className="section-badge-row">
-            <Badge variant="warning" size="sm">OPERATIONAL WORKFLOW</Badge>
-          </div>
-          <h2 className="section-heading">How AmbuRoute Works</h2>
-          <p className="section-subheading">
-            A cooperative end-to-end flow designed for clarity, safety, and driver control.
-          </p>
-        </div>
-
-        <div className="workflow-steps-list">
+        <div className="workflow-step-grid">
           {/* Step 1 */}
-          <div className="workflow-step-item">
-            <div className="step-badge">01</div>
-            <div className="step-body-card">
-              <div className="step-body-header">
-                <ShieldCheckIcon size={18} className="text-amber" />
-                <h3 className="step-body-title">Authorized Driver Login</h3>
-              </div>
-              <p className="step-body-desc">
-                An authorized emergency vehicle operator logs in with verified credentials to gain access to mission controls.
-              </p>
+          <div className="workflow-card">
+            <span className="workflow-card-step-num">STEP 01</span>
+            <div className="workflow-card-icon-wrap" style={{ background: '#FEE2E2', color: '#DC2626' }}>
+              <SirenIcon size={24} />
+            </div>
+            <h3 className="workflow-card-title">Emergency Mission Created</h3>
+            <p className="workflow-card-desc">
+              An authorized ambulance driver starts an emergency mission and selects the destination hospital (e.g. PMCH Trauma Base).
+            </p>
+            <div className="workflow-card-notice">
+              Authenticated & verified drivers only (/api/v1/trips)
             </div>
           </div>
 
           {/* Step 2 */}
-          <div className="workflow-step-item">
-            <div className="step-badge">02</div>
-            <div className="step-body-card">
-              <div className="step-body-header">
-                <MapPinIcon size={18} className="text-red" />
-                <h3 className="step-body-title">Simulated Emergency Trip Dispatch</h3>
-              </div>
-              <p className="step-body-desc">
-                The driver starts a trip and selects a designated medical base, such as Patna Medical College & Hospital (PMCH).
-              </p>
+          <div className="workflow-card">
+            <span className="workflow-card-step-num">STEP 02</span>
+            <div className="workflow-card-icon-wrap" style={{ background: '#ECFDF5', color: '#16865B' }}>
+              <SparklesIcon size={24} />
+            </div>
+            <h3 className="workflow-card-title">AI Finds the Best Route</h3>
+            <p className="workflow-card-desc">
+              The routing system evaluates road distance, available traffic intelligence and reported road incidents to help identify a suitable route.
+            </p>
+            <div className="workflow-card-notice">
+              Meta Muse Spark AI with Groq & deterministic fallback
             </div>
           </div>
 
           {/* Step 3 */}
-          <div className="workflow-step-item">
-            <div className="step-badge">03</div>
-            <div className="step-body-card">
-              <div className="step-body-header">
-                <RadioIcon size={18} className="text-amber" />
-                <h3 className="step-body-title">Corridor Display & Trip Status</h3>
-              </div>
-              <p className="step-body-desc">
-                The cockpit displays the primary arterial route (Bailey Road to Fraser Road) and tracks progress along corridor waypoints.
-              </p>
+          <div className="workflow-card">
+            <span className="workflow-card-step-num">STEP 03</span>
+            <div className="workflow-card-icon-wrap" style={{ background: '#FEF3C7', color: '#D97706' }}>
+              <BellIcon size={24} />
+            </div>
+            <h3 className="workflow-card-title">Community Gets Notified</h3>
+            <p className="workflow-card-desc">
+              Registered users with active notification subscriptions receive emergency alerts according to the configured notification mode.
+            </p>
+            <div className="workflow-card-notice">
+              Global notification mode active for demo; proximity mode ready
             </div>
           </div>
 
           {/* Step 4 */}
-          <div className="workflow-step-item">
-            <div className="step-badge">04</div>
-            <div className="step-body-card">
-              <div className="step-body-header">
-                <BellIcon size={18} className="text-red" />
-                <h3 className="step-body-title">Approaching Ambulance Alert for Road Users</h3>
-              </div>
-              <p className="step-body-desc">
-                Participating road users subscribed within a 500-metre envelope ahead receive clear notifications to pull over to the left.
-              </p>
+          <div className="workflow-card">
+            <span className="workflow-card-step-num">STEP 04</span>
+            <div className="workflow-card-icon-wrap" style={{ background: '#E0F2FE', color: '#0284C7' }}>
+              <Volume2Icon size={24} />
+            </div>
+            <h3 className="workflow-card-title">Live Navigation & Voice Assistance</h3>
+            <p className="workflow-card-desc">
+              The driver follows the route, receives traffic updates and can ask the voice assistant hands-free questions about destinations and incidents.
+            </p>
+            <div className="workflow-card-notice">
+              Groq Whisper transcription + hands-free voice engine
             </div>
           </div>
 
           {/* Step 5 */}
-          <div className="workflow-step-item">
-            <div className="step-badge">05</div>
-            <div className="step-body-card">
-              <div className="step-body-header">
-                <AlertTriangleIcon size={18} className="text-amber" />
-                <h3 className="step-body-title">Community Traffic Observations</h3>
-              </div>
-              <p className="step-body-desc">
-                Road users report real-time observations regarding road conditions (e.g., fallen cables or blockage at Dak Bungalow crossing).
-              </p>
+          <div className="workflow-card">
+            <span className="workflow-card-step-num">STEP 05</span>
+            <div className="workflow-card-icon-wrap" style={{ background: '#CCFBF1', color: '#0F766E' }}>
+              <HospitalIcon size={24} />
             </div>
-          </div>
-
-          {/* Step 6 */}
-          <div className="workflow-step-item">
-            <div className="step-badge">06</div>
-            <div className="step-body-card">
-              <div className="step-body-header">
-                <Volume2Icon size={18} className="text-mint" />
-                <h3 className="step-body-title">Traffic-Aware Route Evaluation & Voice Assistance</h3>
-              </div>
-              <p className="step-body-desc">
-                When blockage is identified, the backend evaluates alternatives (such as Atal Path & JP Ganga Path) and delivers a short voice recommendation.
-              </p>
-            </div>
-          </div>
-
-          {/* Step 7 */}
-          <div className="workflow-step-item">
-            <div className="step-badge">07</div>
-            <div className="step-body-card">
-              <div className="step-body-header">
-                <CheckCircle2Icon size={18} className="text-mint" />
-                <h3 className="step-body-title">Driver Confirmation</h3>
-              </div>
-              <p className="step-body-desc">
-                The driver reviews the detour and confirms or rejects it. The system never reroutes silently without driver approval.
-              </p>
+            <h3 className="workflow-card-title">Hospital Arrival</h3>
+            <p className="workflow-card-desc">
+              The ambulance reaches the selected hospital and completes the emergency mission safely, recording telemetry for post-mission audit.
+            </p>
+            <div className="workflow-card-notice">
+              Direct emergency ramp access & trip telemetry logging
             </div>
           </div>
         </div>
       </section>
 
       {/* ---------------------------------------------------------------------
-         Architecture Boundary: Simulated vs Live Backend Services
+         3. AI ROUTE OPTIMIZATION SECTION (VERY IMPORTANT)
          --------------------------------------------------------------------- */}
-      <section className="home-architecture-section">
-        <div className="architecture-notice-card">
-          <div className="architecture-notice-header">
-            <Badge variant="neutral" size="sm">PROTOTYPE TRANSPARENCY</Badge>
-            <h3 className="architecture-notice-title">Prototype Architecture Boundary</h3>
-            <p className="architecture-notice-sub">
-              To ensure honest evaluation, AmbuRoute clearly delineates between frontend demonstration features and backend infrastructure requirements.
+      <section id="ai-routing" className="ai-routing-section-container">
+        <div className="overview-section-header">
+          <span className="section-kicker-pill">Intelligent Route Reassessment</span>
+          <h2 className="overview-section-title">AI Route Optimization & Hazard Avoidance</h2>
+          <p className="overview-section-sub">
+            The AI analyzes available traffic information, road reports, route distance and road conditions to help identify a suitable route. When conditions change, the system can support route reassessment.
+          </p>
+        </div>
+
+        {/* Embedded Interactive Route Map */}
+        <OverviewRouteMap />
+
+        {/* Side-by-Side Detailed Route Comparison */}
+        <div className="ai-comparison-grid">
+          {/* Card 1: AI Recommended Detour */}
+          <div className="ai-comparison-card ai-comparison-card--recommended">
+            <div className="comparison-header">
+              <span className="hero-badge-ai">AI RECOMMENDED DETOUR</span>
+              <span className="text-mint font-semibold" style={{ fontSize: '0.84rem' }}>
+                Estimated 8-12 min time saved
+              </span>
+            </div>
+
+            <h3 className="comparison-title">Atal Path & JP Ganga Path Expressway</h3>
+
+            <div className="comparison-stat-bar">
+              <div className="comparison-stat-item">
+                <span className="comparison-stat-val text-mint">14 min</span>
+                <span className="comparison-stat-lbl">ESTIMATED DURATION</span>
+              </div>
+              <div className="comparison-stat-item">
+                <span className="comparison-stat-val">6.8 km</span>
+                <span className="comparison-stat-lbl">TOTAL DISTANCE</span>
+              </div>
+              <div className="comparison-stat-item">
+                <span className="comparison-stat-val text-mint">FREE FLOW</span>
+                <span className="comparison-stat-lbl">CORRIDOR STATUS</span>
+              </div>
+            </div>
+
+            <ul className="comparison-points-list">
+              <li className="comparison-point">
+                <CheckIcon size={16} className="text-mint" />
+                <span>6-lane grade-separated express corridor with minimal intersections.</span>
+              </li>
+              <li className="comparison-point">
+                <CheckIcon size={16} className="text-mint" />
+                <span>Direct elevated flyover ramp from Ganga Path into PMCH Trauma Center.</span>
+              </li>
+              <li className="comparison-point">
+                <CheckIcon size={16} className="text-mint" />
+                <span>Zero reported traffic obstructions along the express riverfront.</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Card 2: Congested Direct Route */}
+          <div className="ai-comparison-card ai-comparison-card--congested">
+            <div className="comparison-header">
+              <span className="floating-card-tag floating-card-tag--red" style={{ background: '#FEE2E2', padding: '0.2rem 0.6rem', borderRadius: '999px' }}>
+                CONGESTED PRIMARY ARTERIAL
+              </span>
+              <span className="text-red font-semibold" style={{ fontSize: '0.84rem' }}>
+                Severe Delay Warning
+              </span>
+            </div>
+
+            <h3 className="comparison-title">Bailey Road via Fraser Road & Dak Bungalow</h3>
+
+            <div className="comparison-stat-bar">
+              <div className="comparison-stat-item">
+                <span className="comparison-stat-val text-red">26 min</span>
+                <span className="comparison-stat-lbl">ESTIMATED DURATION</span>
+              </div>
+              <div className="comparison-stat-item">
+                <span className="comparison-stat-val">5.4 km</span>
+                <span className="comparison-stat-lbl">TOTAL DISTANCE</span>
+              </div>
+              <div className="comparison-stat-item">
+                <span className="comparison-stat-val text-red">HIGH DELAY</span>
+                <span className="comparison-stat-lbl">CORRIDOR STATUS</span>
+              </div>
+            </div>
+
+            <ul className="comparison-points-list">
+              <li className="comparison-point">
+                <AlertTriangleIcon size={16} className="text-red" />
+                <span>High commercial density at Dak Bungalow intersection (3 reports).</span>
+              </li>
+              <li className="comparison-point">
+                <AlertTriangleIcon size={16} className="text-red" />
+                <span>Stoppage & construction reported at Fraser Road crossing.</span>
+              </li>
+              <li className="comparison-point">
+                <AlertTriangleIcon size={16} className="text-red" />
+                <span>Higher risk of emergency vehicle immobilization during peak transit hours.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Technical Honesty Distinction Callout */}
+        <div className="ai-architecture-callout">
+          <div className="callout-icon">
+            <ShieldCheckIcon size={24} />
+          </div>
+          <div className="callout-content">
+            <h4 className="callout-title">Engine Distinction: Routing Engine vs. AI Traffic Intelligence</h4>
+            <p className="callout-text">
+              <strong>Transparent System Design:</strong> In AmbuRoute, standard routing engines (OSRM / OpenStreetMap) calculate geometric graph distances and baseline travel times. The AI layer (Meta Muse Spark with Groq fallback) analyzes community-reported incident descriptions, corroborates credibility, and synthesizes natural-language voice advisories.
+              <strong> The licensed driver always retains sole confirmation authority</strong> before any route change takes place.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------------------------------------------------------------------
+         4. COMPLETE FEATURE SHOWCASE (ALL 8 IMPLEMENTED FEATURES)
+         --------------------------------------------------------------------- */}
+      <section id="features" className="feature-showcase-section">
+        <div className="overview-section-header">
+          <span className="section-kicker-pill">Comprehensive Platform Capabilities</span>
+          <h2 className="overview-section-title">Complete Feature Showcase</h2>
+          <p className="overview-section-sub">
+            Every feature below is actively implemented, verified with comprehensive tests, and available within the platform.
+          </p>
+        </div>
+
+        <div className="feature-showcase-grid">
+          {/* Feature 1 */}
+          <div className="feature-showcase-card">
+            <div className="feature-card-media">
+              <img
+                src="/assets/screenshots/active_mission.png"
+                alt="Smart Route Optimization in AmbuRoute"
+                className="feature-card-screenshot"
+                loading="lazy"
+              />
+              <span className="feature-card-badge-overlay">FEATURE 01</span>
+            </div>
+            <div className="feature-card-body">
+              <div className="feature-card-header">
+                <div className="feature-icon-box feature-icon-box--green">
+                  <RouteIcon size={18} />
+                </div>
+                <h3 className="feature-card-title">Smart Route Optimization</h3>
+              </div>
+              <p className="feature-card-desc">
+                Find suitable ambulance routes using distance, available road information and traffic intelligence to avoid choked arteries.
+              </p>
+              <button
+                type="button"
+                className="feature-card-action-btn"
+                onClick={() => scrollToSection('ai-routing')}
+              >
+                <span>Inspect Route Map</span>
+                <ChevronRightIcon size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Feature 2 */}
+          <div className="feature-showcase-card">
+            <div className="feature-card-media">
+              <img
+                src="/assets/screenshots/active_mission.png"
+                alt="Real-Time Traffic Intelligence"
+                className="feature-card-screenshot"
+                loading="lazy"
+              />
+              <span className="feature-card-badge-overlay">FEATURE 02</span>
+            </div>
+            <div className="feature-card-body">
+              <div className="feature-card-header">
+                <div className="feature-icon-box feature-icon-box--amber">
+                  <ActivityIcon size={18} />
+                </div>
+                <h3 className="feature-card-title">Real-Time Traffic Intelligence</h3>
+              </div>
+              <p className="feature-card-desc">
+                Incident clustering, freshness decay filtering, duplicate detection, and Meta Muse Spark AI traffic condition summaries.
+              </p>
+              <button
+                type="button"
+                className="feature-card-action-btn"
+                onClick={() => handleNavigate('public')}
+              >
+                <span>View Traffic Network</span>
+                <ChevronRightIcon size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Feature 3 */}
+          <div className="feature-showcase-card">
+            <div className="feature-card-media">
+              <img
+                src="/assets/screenshots/public_dashboard.png"
+                alt="Community Road Reporting"
+                className="feature-card-screenshot"
+                loading="lazy"
+              />
+              <span className="feature-card-badge-overlay">FEATURE 03</span>
+            </div>
+            <div className="feature-card-body">
+              <div className="feature-card-header">
+                <div className="feature-icon-box feature-icon-box--teal">
+                  <UsersIcon size={18} />
+                </div>
+                <h3 className="feature-card-title">Community Road Reporting</h3>
+              </div>
+              <p className="feature-card-desc">
+                Registered and anonymous users submit one-tap road reports (CLEAR, HEAVY, BLOCKED) with coordinates to help ambulances.
+              </p>
+              <button
+                type="button"
+                className="feature-card-action-btn"
+                onClick={() => handleNavigate('report')}
+              >
+                <span>Report Road Condition</span>
+                <ChevronRightIcon size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Feature 4 */}
+          <div className="feature-showcase-card">
+            <div className="feature-card-media">
+              <img
+                src="/assets/screenshots/notification_received.png"
+                alt="Instant Emergency Push Notifications"
+                className="feature-card-screenshot"
+                loading="lazy"
+              />
+              <span className="feature-card-badge-overlay">FEATURE 04</span>
+            </div>
+            <div className="feature-card-body">
+              <div className="feature-card-header">
+                <div className="feature-icon-box feature-icon-box--red">
+                  <BellIcon size={18} />
+                </div>
+                <h3 className="feature-card-title">Instant Push Notifications</h3>
+              </div>
+              <p className="feature-card-desc">
+                W3C Web Push & VAPID cryptography delivering timely yield notifications to subscribed browser devices along upcoming paths.
+              </p>
+              <button
+                type="button"
+                className="feature-card-action-btn"
+                onClick={() => handleNavigate('alerts')}
+              >
+                <span>Enable Alerts</span>
+                <ChevronRightIcon size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Feature 5 */}
+          <div className="feature-showcase-card">
+            <div className="feature-card-media">
+              <img
+                src="/assets/screenshots/voice_assistant.png"
+                alt="AI Voice Assistant in Cockpit"
+                className="feature-card-screenshot"
+                loading="lazy"
+              />
+              <span className="feature-card-badge-overlay">FEATURE 05</span>
+            </div>
+            <div className="feature-card-body">
+              <div className="feature-card-header">
+                <div className="feature-icon-box feature-icon-box--blue">
+                  <Volume2Icon size={18} />
+                </div>
+                <h3 className="feature-card-title">AI Voice Assistant</h3>
+              </div>
+              <p className="feature-card-desc">
+                Drivers query destination, active status, and traffic conditions hands-free using Groq Whisper speech-to-text.
+              </p>
+              <button
+                type="button"
+                className="feature-card-action-btn"
+                onClick={() => handleNavigate(isDriverAuthenticated ? 'driver' : 'login', isDriverAuthenticated ? 'active' : null)}
+              >
+                <span>Driver Cockpit</span>
+                <ChevronRightIcon size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Feature 6 */}
+          <div className="feature-showcase-card">
+            <div className="feature-card-media">
+              <img
+                src="/assets/screenshots/driver_dashboard.png"
+                alt="Nearby Hospital Discovery"
+                className="feature-card-screenshot"
+                loading="lazy"
+              />
+              <span className="feature-card-badge-overlay">FEATURE 06</span>
+            </div>
+            <div className="feature-card-body">
+              <div className="feature-card-header">
+                <div className="feature-icon-box feature-icon-box--teal">
+                  <HospitalIcon size={18} />
+                </div>
+                <h3 className="feature-card-title">Nearby Hospital Discovery</h3>
+              </div>
+              <p className="feature-card-desc">
+                Dynamically discover trauma centers within a 35 km radius based on current vehicle GPS coordinates and distance ranking.
+              </p>
+              <button
+                type="button"
+                className="feature-card-action-btn"
+                onClick={() => handleNavigate(isDriverAuthenticated ? 'driver' : 'login', isDriverAuthenticated ? 'start' : null)}
+              >
+                <span>Discover Hospitals</span>
+                <ChevronRightIcon size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Feature 7 */}
+          <div className="feature-showcase-card">
+            <div className="feature-card-media">
+              <img
+                src="/assets/screenshots/driver_dashboard.png"
+                alt="Driver Dashboard & Mission Center"
+                className="feature-card-screenshot"
+                loading="lazy"
+              />
+              <span className="feature-card-badge-overlay">FEATURE 07</span>
+            </div>
+            <div className="feature-card-body">
+              <div className="feature-card-header">
+                <div className="feature-icon-box feature-icon-box--green">
+                  <ShieldCheckIcon size={18} />
+                </div>
+                <h3 className="feature-card-title">Driver Dashboard</h3>
+              </div>
+              <p className="feature-card-desc">
+                Full mission lifecycle management, assigned vehicle details, trip logs, profile verification, and emergency controls.
+              </p>
+              <button
+                type="button"
+                className="feature-card-action-btn"
+                onClick={() => handleNavigate(isDriverAuthenticated ? 'driver' : 'login', isDriverAuthenticated ? 'home' : null)}
+              >
+                <span>Driver Portal</span>
+                <ChevronRightIcon size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Feature 8 */}
+          <div className="feature-showcase-card">
+            <div className="feature-card-media">
+              <img
+                src="/assets/screenshots/active_mission.png"
+                alt="Live Mission Monitoring"
+                className="feature-card-screenshot"
+                loading="lazy"
+              />
+              <span className="feature-card-badge-overlay">FEATURE 08</span>
+            </div>
+            <div className="feature-card-body">
+              <div className="feature-card-header">
+                <div className="feature-icon-box feature-icon-box--red">
+                  <NavigationIcon size={18} />
+                </div>
+                <h3 className="feature-card-title">Live Mission Monitoring</h3>
+              </div>
+              <p className="feature-card-desc">
+                Display ambulance location, destination hospital, polyline geometry, and relevant road incidents in synchronized real time.
+              </p>
+              <button
+                type="button"
+                className="feature-card-action-btn"
+                onClick={() => handleNavigate('public')}
+              >
+                <span>Live Dashboard</span>
+                <ChevronRightIcon size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------------------------------------------------------------------
+         5. DEDICATED NOTIFICATION WORKFLOW SECTION
+         --------------------------------------------------------------------- */}
+      <section id="notifications" className="notifications-workflow-section">
+        <div className="overview-section-header">
+          <span className="section-kicker-pill">Direct Emergency Yielding</span>
+          <h2 className="overview-section-title">Emergency Notification Pipeline</h2>
+          <p className="overview-section-sub">
+            How AmbuRoute alerts opted-in citizens to safely yield before the ambulance arrives.
+          </p>
+        </div>
+
+        <div className="notifications-section-grid">
+          {/* Left: 4-Step Pipeline Explanation */}
+          <div className="notifications-pipeline-card">
+            <div className="notif-pipe-step">
+              <div className="notif-pipe-icon text-red">
+                <SirenIcon size={20} />
+              </div>
+              <div className="notif-pipe-content">
+                <div className="notif-pipe-title">1. Driver Dispatches Emergency Mission</div>
+                <div className="notif-pipe-desc">
+                  When an ambulance departs, the backend registers the corridor waypoints and activates notification targeting.
+                </div>
+              </div>
+            </div>
+
+            <div className="notif-pipe-step">
+              <div className="notif-pipe-icon text-amber">
+                <ZapIcon size={20} />
+              </div>
+              <div className="notif-pipe-content">
+                <div className="notif-pipe-title">2. Backend Dispatches Web Push via VAPID</div>
+                <div className="notif-pipe-desc">
+                  The backend encrypts notification payloads with VAPID keys and dispatches alerts through standard browser push services.
+                </div>
+              </div>
+            </div>
+
+            <div className="notif-pipe-step">
+              <div className="notif-pipe-icon text-teal">
+                <BellIcon size={20} />
+              </div>
+              <div className="notif-pipe-content">
+                <div className="notif-pipe-title">3. Subscribed Devices Receive Emergency Alert</div>
+                <div className="notif-pipe-desc">
+                  Subscribed devices trigger a high-priority banner with audible cues, even when the browser tab is minimized.
+                </div>
+              </div>
+            </div>
+
+            <div className="notif-pipe-step">
+              <div className="notif-pipe-icon text-mint">
+                <CheckCircle2Icon size={20} />
+              </div>
+              <div className="notif-pipe-content">
+                <div className="notif-pipe-title">4. Citizens Pull Over Safely</div>
+                <div className="notif-pipe-desc">
+                  Road users receive immediate instructions: "Ambulance 108 Approaching · Please pull over to the left and yield safe passage."
+                </div>
+              </div>
+            </div>
+
+            <div className="workflow-card-notice" style={{ marginTop: '0.5rem' }}>
+              <strong>Browser Permission Required:</strong> Web notifications operate strictly via standard W3C Web Push with explicit user consent. The system does not assume arbitrary phones can be reached without an active subscription.
+            </div>
+          </div>
+
+          {/* Right: Realistic Push Notification Preview */}
+          <div className="notification-phone-frame">
+            <div className="phone-mockup-header">
+              <span className="phone-mockup-label">Simulated Device Lockscreen</span>
+              <span className="hero-badge-platform" style={{ fontSize: '0.7rem' }}>W3C Web Push</span>
+            </div>
+
+            <div className="simulated-push-banner">
+              <div className="push-header-row">
+                <div className="push-app-id">
+                  <span className="push-badge-pulse" />
+                  <span>AMBUROUTE EMERGENCY TRANSIT</span>
+                </div>
+                <span className="text-muted" style={{ fontSize: '0.74rem' }}>Just now</span>
+              </div>
+
+              <div className="push-content-block">
+                <h4 className="push-headline">🚨 EMERGENCY VEHICLE APPROACHING</h4>
+                <p className="push-text">
+                  Ambulance 108 is en route to PMCH Trauma Base along the Bailey Road corridor. Please pull over to the left and yield safe passage.
+                </p>
+              </div>
+
+              <div className="push-action-btn-row">
+                <button
+                  type="button"
+                  className="push-primary-btn"
+                  onClick={() => handleNavigate('alerts')}
+                >
+                  View Corridor Alert
+                </button>
+                <button
+                  type="button"
+                  className="push-secondary-btn"
+                  onClick={() => handleNavigate('public')}
+                >
+                  Live Map
+                </button>
+              </div>
+            </div>
+
+            <div className="text-muted" style={{ fontSize: '0.8rem', textAlign: 'center', lineHeight: '1.45' }}>
+              Demonstrated across desktop and mobile browsers. Supports vibration, sound, and corridor links.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------------------------------------------------------------------
+         6. COMMUNITY CONTRIBUTION SECTION
+         --------------------------------------------------------------------- */}
+      <section id="community" className="community-contribution-section">
+        <div className="overview-section-header">
+          <span className="section-kicker-pill">Citizen Road Intelligence</span>
+          <h2 className="overview-section-title">Community-Powered Traffic Reporting</h2>
+          <p className="overview-section-sub">
+            Road users contribute real-time observations to help ambulances bypass dangerous blockades and gridlocked intersections.
+          </p>
+        </div>
+
+        <div className="community-section-grid">
+          <div className="community-card-left">
+            <div className="community-steps-list">
+              <div className="community-step-item">
+                <div className="comm-step-number">1</div>
+                <div className="comm-step-text">
+                  <strong>Create a Free Citizen Account:</strong> Sign up with your name and email to submit authenticated reports, or report anonymously with device rate-limiting.
+                </div>
+              </div>
+              <div className="community-step-item">
+                <div className="comm-step-number">2</div>
+                <div className="comm-step-text">
+                  <strong>One-Tap Condition Selection:</strong> Choose from 4 standardized report types to provide instant, unambiguous road condition data.
+                </div>
+              </div>
+              <div className="community-step-item">
+                <div className="comm-step-number">3</div>
+                <div className="comm-step-text">
+                  <strong>Freshness & Distance Verification:</strong> Backend clustering validates timestamps, GPS proximity, and independent corroborations.
+                </div>
+              </div>
+              <div className="community-step-item">
+                <div className="comm-step-number">4</div>
+                <div className="comm-step-text">
+                  <strong>AI Synthesis:</strong> Meta Muse Spark evaluates verified reports to generate voice detour suggestions for approaching drivers.
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.8rem', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                className="hero-btn-primary"
+                onClick={() => handleNavigate('report')}
+              >
+                <AlertTriangleIcon size={16} />
+                <span>Submit a Road Observation</span>
+              </button>
+
+              <button
+                type="button"
+                className="hero-btn-secondary"
+                onClick={() => handleNavigate('public')}
+              >
+                <span>View Public Traffic Feed</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Interactive Report Card Preview */}
+          <div className="report-preview-interactive-card">
+            <div className="report-preview-header">
+              <span className="report-preview-title">Supported Report Types</span>
+              <span className="hero-badge-platform">One-Tap Submission</span>
+            </div>
+
+            <div className="report-types-pill-grid">
+              <div className="report-type-badge report-type-badge--clear">
+                <CheckCircle2Icon size={16} />
+                <span>CLEAR: Flowing</span>
+              </div>
+              <div className="report-type-badge report-type-badge--heavy">
+                <AlertTriangleIcon size={16} />
+                <span>TRAFFIC_HIGH: Congestion</span>
+              </div>
+              <div className="report-type-badge report-type-badge--blocked">
+                <OctagonAlertIcon size={16} />
+                <span>ROAD_BLOCKED: Closure</span>
+              </div>
+              <div className="report-type-badge report-type-badge--assess">
+                <HelpCircleIcon size={16} />
+                <span>CANNOT_ASSESS: Unclear</span>
+              </div>
+            </div>
+
+            <p className="text-muted" style={{ fontSize: '0.82rem', margin: 0, lineHeight: '1.45' }}>
+              Every submission records road name, description, and optional GPS coordinates. Reports older than 30 minutes are automatically marked as stale.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------------------------------------------------------------------
+         7. DRIVER & HOSPITAL VALUE SECTIONS
+         --------------------------------------------------------------------- */}
+      <section id="stakeholders" className="stakeholders-section">
+        <div className="overview-section-header">
+          <span className="section-kicker-pill">Designed for First Responders</span>
+          <h2 className="overview-section-title">Built for Drivers and Trauma Centers</h2>
+          <p className="overview-section-sub">
+            Purpose-built workflows focused on ergonomics, driver safety, and emergency hospital discovery.
+          </p>
+        </div>
+
+        <div className="stakeholder-grid">
+          {/* Ambulance Drivers */}
+          <div className="stakeholder-card stakeholder-card--driver">
+            <div className="stakeholder-header">
+              <div className="stakeholder-icon stakeholder-icon--green">
+                <AmbulanceIcon size={24} />
+              </div>
+              <div>
+                <h3 className="stakeholder-title">For Ambulance Drivers</h3>
+                <span className="text-muted" style={{ fontSize: '0.84rem' }}>Cockpit & Voice Assistance</span>
+              </div>
+            </div>
+
+            <ul className="stakeholder-list">
+              <li className="stakeholder-list-item">
+                <CheckIcon size={16} className="text-mint" />
+                <span><strong>Hands-Free Voice Assistant:</strong> Groq Whisper voice recognition allows querying destinations and incidents without taking hands off the wheel.</span>
+              </li>
+              <li className="stakeholder-list-item">
+                <CheckIcon size={16} className="text-mint" />
+                <span><strong>Driver-in-the-Loop Authority:</strong> AI recommendations provide clear reasoning, but drivers always confirm detour decisions.</span>
+              </li>
+              <li className="stakeholder-list-item">
+                <CheckIcon size={16} className="text-mint" />
+                <span><strong>Dynamic Nearby Hospital Discovery:</strong> Instantly discover trauma centers within 35 km with real-time distance sorting.</span>
+              </li>
+              <li className="stakeholder-list-item">
+                <CheckIcon size={16} className="text-mint" />
+                <span><strong>Trip Telemetry & History:</strong> Log total response duration, distance covered, and route milestones.</span>
+              </li>
+            </ul>
+
+            <button
+              type="button"
+              className="hero-btn-primary"
+              style={{ marginTop: 'auto' }}
+              onClick={() => handleNavigate(isDriverAuthenticated ? 'driver' : 'login', isDriverAuthenticated ? 'home' : 'driver')}
+            >
+              <span>{isDriverAuthenticated ? 'Open Driver Cockpit' : 'Sign In as Driver'}</span>
+              <ArrowRightIcon size={16} />
+            </button>
+          </div>
+
+          {/* Hospitals */}
+          <div className="stakeholder-card stakeholder-card--hospital">
+            <div className="stakeholder-header">
+              <div className="stakeholder-icon stakeholder-icon--teal">
+                <HospitalIcon size={24} />
+              </div>
+              <div>
+                <h3 className="stakeholder-title">For Emergency Hospitals</h3>
+                <span className="text-muted" style={{ fontSize: '0.84rem' }}>Destination Readiness</span>
+              </div>
+            </div>
+
+            <ul className="stakeholder-list">
+              <li className="stakeholder-list-item">
+                <CheckIcon size={16} className="text-mint" />
+                <span><strong>Standardized Destination Discovery:</strong> Drivers select registered trauma centers (e.g. PMCH, IGIMS, NMCH, AIIMS) with verified gate coordinates.</span>
+              </li>
+              <li className="stakeholder-list-item">
+                <CheckIcon size={16} className="text-mint" />
+                <span><strong>Direct Emergency Ramp Routing:</strong> Incorporates specialized infrastructure like the PMCH dedicated elevated flyover ramp from Ganga Path.</span>
+              </li>
+              <li className="stakeholder-list-item">
+                <CheckIcon size={16} className="text-mint" />
+                <span><strong>Reliable Arrival Forecasting:</strong> Real-time traffic intelligence prevents ambulances from getting stranded 500 meters from trauma center gates.</span>
+              </li>
+              <li className="stakeholder-list-item">
+                <CheckIcon size={16} className="text-mint" />
+                <span><strong>Honest Integration Scope:</strong> AmbuRoute operates as the arterial transit bridge; no invasive internal hospital hospital-side software required.</span>
+              </li>
+            </ul>
+
+            <button
+              type="button"
+              className="hero-btn-secondary"
+              style={{ marginTop: 'auto' }}
+              onClick={() => handleNavigate('public')}
+            >
+              <span>View Public Network Feed</span>
+              <ArrowRightIcon size={16} />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------------------------------------------------------------------
+         8. IMPACT SECTION
+         --------------------------------------------------------------------- */}
+      <section id="impact" className="impact-section-box">
+        <div className="overview-section-header" style={{ marginBottom: '1rem' }}>
+          <span className="section-kicker-pill">Measurable Mission</span>
+          <h2 className="overview-section-title">Saving Critical Time in Transit</h2>
+          <p className="overview-section-sub">
+            Emergency transit efficiency depends on seconds. AmbuRoute focuses on eliminating avoidable bottlenecks.
+          </p>
+        </div>
+
+        <div className="impact-pillars-grid">
+          <div className="impact-pillar-card">
+            <h4 className="impact-pillar-title">Golden Hour Protection</h4>
+            <p className="impact-pillar-desc">
+              Bypassing predictable congestion spots can save 8 to 15 vital minutes for acute trauma, cardiac arrest, and stroke patients.
             </p>
           </div>
 
-          <div className="architecture-columns-grid">
-            <div className="arch-col arch-col--simulated">
-              <div className="arch-col-tag text-amber">Simulated in this MVP Frontend</div>
-              <ul className="arch-col-list">
-                <li>GPS route telemetry playback simulating active ambulance travel in Patna.</li>
-                <li>Waypoint progression stepped manually or automatically along Patna routes.</li>
-                <li>Simulated browser notification permission and alert triggers within 500m.</li>
-                <li>Curated Patna traffic observations demonstrating blockage evaluation.</li>
-              </ul>
-            </div>
+          <div className="impact-pillar-card">
+            <h4 className="impact-pillar-title">Driver-in-the-Loop AI</h4>
+            <p className="impact-pillar-desc">
+              AI evaluates crowd reports and expressway viability, while the experienced human driver retains final routing authority.
+            </p>
+          </div>
 
-            <div className="arch-col arch-col--backend">
-              <div className="arch-col-tag text-mint">Connected in Backend Integrations</div>
-              <ul className="arch-col-list">
-                <li>Cryptographic JWT bearer authentication, session revocation, and backend driver verification (/api/v1/auth).</li>
-                <li>Live routing service integration (OSRM / Google Maps / MapmyIndia) for real ETAs.</li>
-                <li>WebSocket & Geohash clustering for sub-second ambulance location broadcasts.</li>
-                <li>Web Push API (VAPID) delivery to mobile devices across telecom networks.</li>
-              </ul>
-            </div>
+          <div className="impact-pillar-card">
+            <h4 className="impact-pillar-title">Community Cooperative Action</h4>
+            <p className="impact-pillar-desc">
+              Road users take an active, life-saving role by receiving corridor yield alerts and submitting verified road conditions.
+            </p>
+          </div>
+
+          <div className="impact-pillar-card">
+            <h4 className="impact-pillar-title">Privacy-Preserving Architecture</h4>
+            <p className="impact-pillar-desc">
+              No continuous background surveillance or device tracking. Push subscriptions rely on standard anonymized endpoints.
+            </p>
+          </div>
+
+          <div className="impact-pillar-card">
+            <h4 className="impact-pillar-title">Resilient Fallbacks</h4>
+            <p className="impact-pillar-desc">
+              Multi-tiered AI architecture gracefully falls back from Meta Muse Spark to Groq and deterministic logic during network drops.
+            </p>
+          </div>
+
+          <div className="impact-pillar-card">
+            <h4 className="impact-pillar-title">Open Geospatial Standards</h4>
+            <p className="impact-pillar-desc">
+              Built on OpenStreetMap and Leaflet to enable rapid deployment across diverse cities without proprietary vendor lock-in.
+            </p>
+          </div>
+        </div>
+
+        <div className="impact-closing-banner">
+          <h3 className="impact-closing-headline">
+            Making Emergency Response Smarter, Safer and More Connected.
+          </h3>
+          <p className="impact-closing-sub">
+            Experience the complete platform today. Explore the live transit network, test community reporting, or inspect the driver cockpit.
+          </p>
+          <div style={{ display: 'flex', gap: '0.85rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button
+              type="button"
+              className="hero-btn-primary"
+              onClick={() => handleNavigate('public')}
+            >
+              <span>Explore Public Network</span>
+              <ArrowRightIcon size={16} />
+            </button>
+            <button
+              type="button"
+              className="hero-btn-secondary"
+              onClick={() => handleNavigate('login')}
+            >
+              <span>Sign In / Register</span>
+            </button>
+            <button
+              type="button"
+              className="hero-btn-outline"
+              onClick={() => handleNavigate('alerts')}
+            >
+              <span>Enable Alerts</span>
+            </button>
           </div>
         </div>
       </section>

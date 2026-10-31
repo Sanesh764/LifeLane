@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import './App.css';
 import { SimulationProvider } from './context/SimulationContext.jsx';
 import { useSimulation } from './context/useSimulation.js';
+import { authService } from './services/authService.js';
 import { Header } from './components/layout/Header.jsx';
 import { Footer } from './components/layout/Footer.jsx';
 import { OverviewPage } from './pages/OverviewPage.jsx';
@@ -25,6 +26,15 @@ function AppContent() {
     dismissToast,
   } = useSimulation();
 
+  // Automatically transition away from login view once driver is authenticated
+  useEffect(() => {
+    if (activeTab === 'login' && isDriverAuthenticated) {
+      setActiveTab('driver');
+      setDriverSubTab('home');
+      window.location.hash = 'driver/home';
+    }
+  }, [activeTab, isDriverAuthenticated, setActiveTab, setDriverSubTab]);
+
   // Listen to hash changes for robust browser navigation & direct links
   useEffect(() => {
     function handleHashChange() {
@@ -40,9 +50,11 @@ function AppContent() {
           return;
         }
 
-        if (!isDriverAuthenticated) {
+        // Check both React state and synchronously stored session to avoid 1-tick state race condition
+        const isDriver = isDriverAuthenticated || authService.getCurrentUser()?.authorized;
+        if (!isDriver) {
           setActiveTab('login');
-          window.location.hash = 'login';
+          window.location.hash = 'login/driver';
         } else {
           setActiveTab('driver');
           const validSubTabs = ['home', 'start', 'active', 'history', 'traffic', 'notifications', 'settings'];

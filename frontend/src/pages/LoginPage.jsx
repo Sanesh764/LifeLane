@@ -21,13 +21,15 @@ import { Badge } from '../components/common/Badge.jsx';
  * 3. Verified Ambulance Driver Authorization (AMBULANCE_DRIVER) -> Routes to /#driver/home
  */
 export function LoginPage() {
-  const { login, register, pendingAction, setActiveTab } = useSimulation();
+  const { login, register, pendingAction, setActiveTab, setDriverSubTab } = useSimulation();
 
   // 'public_login' | 'public_register' | 'driver_login'
   const [authMode, setAuthMode] = useState(() => {
     if (pendingAction === 'START_AMBULANCE') return 'driver_login';
-    if (typeof window !== 'undefined' && (window.location.hash.includes('register') || window.location.hash.includes('signup'))) {
-      return 'public_register';
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.toLowerCase();
+      if (hash.includes('driver')) return 'driver_login';
+      if (hash.includes('register') || hash.includes('signup')) return 'public_register';
     }
     return 'public_login';
   });
@@ -42,8 +44,13 @@ export function LoginPage() {
   useEffect(() => {
     if (pendingAction === 'START_AMBULANCE') {
       setAuthMode('driver_login');
-    } else if (window.location.hash.includes('register') || window.location.hash.includes('signup')) {
-      setAuthMode('public_register');
+    } else if (typeof window !== 'undefined') {
+      const hash = window.location.hash.toLowerCase();
+      if (hash.includes('driver')) {
+        setAuthMode('driver_login');
+      } else if (hash.includes('register') || hash.includes('signup')) {
+        setAuthMode('public_register');
+      }
     }
   }, [pendingAction]);
 
@@ -93,7 +100,16 @@ export function LoginPage() {
     try {
       const isPublic = authMode === 'public_login';
       const result = await login(email.trim(), password, { allowPublic: isPublic });
-      if (!result.success) {
+      if (result.success) {
+        if (!isPublic) {
+          setActiveTab('driver');
+          setDriverSubTab('home');
+          window.location.hash = 'driver/home';
+        } else {
+          setActiveTab('public');
+          window.location.hash = 'public';
+        }
+      } else {
         setErrorMsg(result.error || 'Authentication failed. Please verify credentials.');
       }
     } catch {
