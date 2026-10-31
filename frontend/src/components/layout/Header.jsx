@@ -107,7 +107,14 @@ export function Header() {
           </button>
           <button
             type="button"
-            className={`app-nav__item ${activeTab === 'driver' || activeTab === 'login' ? 'is-active' : ''}`}
+            className={`app-nav__item ${activeTab === 'public' ? 'is-active' : ''}`}
+            onClick={() => handleNavClick('public')}
+          >
+            Public Network
+          </button>
+          <button
+            type="button"
+            className={`app-nav__item ${activeTab === 'driver' ? 'is-active' : ''}`}
             onClick={handleDriverNavClick}
           >
             Driver Portal
@@ -136,18 +143,20 @@ export function Header() {
               <div className="header-driver-profile">
                 <div
                   className="driver-profile-pill"
-                  title={`Logged in: ${currentUser?.driverName || 'Driver'} (${currentUser?.vehicleNumber || ''})`}
+                  title={`Signed in: ${currentUser?.name || 'User'} (${currentUser?.role || ''})`}
+                  onClick={() => handleNavClick(currentUser?.isDriver ? 'driver/home' : 'public')}
+                  style={{ cursor: 'pointer' }}
                 >
                   <ShieldCheckIcon size={14} className="text-mint" />
-                  <span className="driver-name">{currentUser?.driverName || 'Driver'}</span>
-                  <span className="driver-badge-num">{currentUser?.vehicleNumber || ''}</span>
+                  <span className="driver-name">{currentUser?.name || currentUser?.driverName || 'User'}</span>
+                  <span className="driver-badge-num">{currentUser?.isDriver ? (currentUser?.vehicleNumber || 'DRIVER') : 'PUBLIC'}</span>
                 </div>
                 <button
                   type="button"
                   className="action-icon-btn action-icon-btn--logout"
                   onClick={logout}
-                  title="Log out driver session"
-                  aria-label="Log out driver session"
+                  title="Log out active session"
+                  aria-label="Log out active session"
                 >
                   <LogOutIcon size={16} />
                 </button>
@@ -157,10 +166,10 @@ export function Header() {
                 type="button"
                 className="header-login-btn"
                 onClick={() => handleNavClick('login')}
-                title="Driver Login"
+                title="Sign In / Register"
               >
                 <ShieldCheckIcon size={14} />
-                <span>Driver Login</span>
+                <span>Sign In / Register</span>
               </button>
             )}
           </div>
@@ -238,6 +247,14 @@ export function Header() {
           >
             <span>Overview</span>
             {activeTab === 'overview' && <span className="active-dot" />}
+          </button>
+          <button
+            type="button"
+            className={`mobile-nav-item ${activeTab === 'public' ? 'is-active' : ''}`}
+            onClick={() => handleNavClick('public')}
+          >
+            <span>Public Network</span>
+            {activeTab === 'public' && <span className="active-dot" />}
           </button>
           <button
             type="button"

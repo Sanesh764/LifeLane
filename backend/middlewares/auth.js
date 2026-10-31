@@ -210,3 +210,51 @@ export const requireActiveDriver = (req, res, next) => {
 
   next();
 };
+
+/**
+ * Optional Authentication Middleware
+ * If Authorization Bearer token is provided, validates and attaches req.user.
+ * If not provided or invalid, proceeds gracefully without failing (req.user = null).
+ */
+export const optionalAuthenticate = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      req.user = null;
+      return next();
+    }
+
+    const token = authHeader.substring(7).trim();
+    if (!token || isTokenRevoked(token)) {
+      req.user = null;
+      return next();
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, env.JWT_SECRET);
+    } catch {
+      req.user = null;
+      return next();
+    }
+
+    if (!isDbConnected()) {
+      req.user = null;
+      return next();
+    }
+
+    const user = await User.findById(decoded.sub);
+    if (!user || user.status !== 'active') {
+      req.user = null;
+      return next();
+    }
+
+    req.user = user;
+    req.token = token;
+    req.tokenExp = decoded.exp;
+    next();
+  } catch {
+    req.user = null;
+    next();
+  }
+};

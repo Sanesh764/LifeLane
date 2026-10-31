@@ -5,6 +5,7 @@ import { useSimulation } from './context/useSimulation.js';
 import { Header } from './components/layout/Header.jsx';
 import { Footer } from './components/layout/Footer.jsx';
 import { OverviewPage } from './pages/OverviewPage.jsx';
+import { PublicDashboardPage } from './pages/PublicDashboardPage.jsx';
 import { DriverPage } from './pages/DriverPage.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
 import { RoadUserPage } from './pages/RoadUserPage.jsx';
@@ -18,6 +19,7 @@ function AppContent() {
     setActiveTab,
     setDriverSubTab,
     isAuthenticated,
+    isDriverAuthenticated,
     isAuthLoading,
     toasts,
     dismissToast,
@@ -38,7 +40,7 @@ function AppContent() {
           return;
         }
 
-        if (!isAuthenticated) {
+        if (!isDriverAuthenticated) {
           setActiveTab('login');
           window.location.hash = 'login';
         } else {
@@ -51,6 +53,8 @@ function AppContent() {
             window.location.hash = 'driver/home';
           }
         }
+      } else if (mainTab === 'public' || mainTab === 'dashboard') {
+        setActiveTab('public');
       } else if (['overview', 'alerts', 'report', 'login'].includes(mainTab)) {
         setActiveTab(mainTab);
       }
@@ -64,7 +68,7 @@ function AppContent() {
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [setActiveTab, setDriverSubTab, isAuthenticated, isAuthLoading]);
+  }, [setActiveTab, setDriverSubTab, isAuthenticated, isDriverAuthenticated, isAuthLoading]);
 
   return (
     <div className="app-shell">
@@ -73,13 +77,14 @@ function AppContent() {
         <div className="app-main__container">
           <ErrorBoundary>
             {activeTab === 'overview' && <OverviewPage />}
+            {activeTab === 'public' && <PublicDashboardPage />}
             {activeTab === 'driver' && (
               isAuthLoading ? (
                 <div className="auth-loading-container" role="status" aria-live="polite">
                   <div className="auth-loading-spinner" />
                   <p className="auth-loading-text">Verifying driver authorization...</p>
                 </div>
-              ) : isAuthenticated ? (
+              ) : isDriverAuthenticated ? (
                 <DriverPage />
               ) : (
                 <LoginPage />

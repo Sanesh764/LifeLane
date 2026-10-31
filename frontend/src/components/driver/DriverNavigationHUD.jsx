@@ -2,6 +2,7 @@ import React from 'react';
 import { useSimulation } from '../../context/useSimulation.js';
 import { calculateDistanceMeters } from '../../services/mapLocations.js';
 import { Badge } from '../common/Badge.jsx';
+import { VoiceAssistantPanel } from './VoiceAssistantPanel.jsx';
 import {
   CompassIcon,
   ArrowRightIcon,
@@ -61,13 +62,17 @@ export function DriverNavigationHUD() {
     remainingKm = (remainingMeters / 1000).toFixed(1);
   }
 
-  // Find relevant traffic reports for upcoming route segments
+  // Find relevant traffic clusters or individual reports for upcoming route segments
   const upcomingRoadNames = currentRoute.segments
     .slice(currentSegmentIdx)
     .map((s) => s.roadName.toLowerCase());
 
-  const upcomingHazard = (trafficReports || []).find((r) =>
-    upcomingRoadNames.some((road) => r.roadSegment.toLowerCase().includes(road) || road.includes(r.roadSegment.toLowerCase()))
+  const upcomingCluster = (trafficClusters || []).find((c) =>
+    upcomingRoadNames.some((road) => c.roadSegment?.toLowerCase().includes(road) || road.includes(c.roadSegment?.toLowerCase()))
+  );
+
+  const upcomingHazard = upcomingCluster || (trafficReports || []).find((r) =>
+    upcomingRoadNames.some((road) => r.roadSegment?.toLowerCase().includes(road) || road.includes(r.roadSegment?.toLowerCase()))
   );
 
   return (
@@ -138,11 +143,24 @@ export function DriverNavigationHUD() {
         {/* Latest Traffic Hazard Alert */}
         <div className="hud-hazard-strip">
           {upcomingHazard ? (
-            <div className={`hud-hazard-pill hud-hazard-pill--${upcomingHazard.reportType === 'ROAD_BLOCKED' ? 'critical' : 'warning'}`}>
+            <div
+              className={`hud-hazard-pill hud-hazard-pill--${
+                (upcomingHazard.reportType || upcomingHazard.incidentType) === 'ROAD_BLOCKED' ? 'critical' : 'warning'
+              }`}
+              title={upcomingHazard.advisory?.summary || upcomingHazard.locationDescription || ''}
+            >
               <AlertTriangleIcon size={13} />
               <span className="hud-hazard-text">
-                <strong>{upcomingHazard.reportType === 'ROAD_BLOCKED' ? 'Blockage' : 'Congestion'}:</strong>{' '}
-                {upcomingHazard.roadSegment} ({upcomingHazard.locationStatus || 'Unverified'})
+                <strong>
+                  {upcomingHazard.corroborationStatus === 'CORROBORATED'
+                    ? `[CORROBORATED · ${upcomingHazard.distinctReporters || upcomingHazard.distinctReporterCount || 3} REPORTERS]`
+                    : upcomingHazard.corroborationStatus === 'DEVELOPING'
+                    ? `[DEVELOPING · ${upcomingHazard.distinctReporters || upcomingHazard.distinctReporterCount || 2} REPORTERS]`
+                    : (upcomingHazard.reportType || upcomingHazard.incidentType) === 'ROAD_BLOCKED'
+                    ? 'Blockage'
+                    : 'Congestion'}:
+                </strong>{' '}
+                {upcomingHazard.roadSegment} {upcomingHazard.advisory ? `— ${upcomingHazard.advisory.summary}` : `(${upcomingHazard.locationStatus || 'Unverified'})`}
               </span>
             </div>
           ) : (
@@ -153,43 +171,8 @@ export function DriverNavigationHUD() {
           )}
         </div>
 
-        {/* Voice Guidance Status Bar */}
-        <div className="hud-voice-row">
-          <div className="hud-voice-status">
-            <div className={`hud-voice-indicator ${isSpeaking ? 'is-speaking' : ''}`}>
-              <RadioIcon size={14} />
-            </div>
-            <div className="hud-voice-snippet" title={latestVoiceGuidance}>
-              <span className="hud-voice-tag">
-                {isSpeaking ? 'SPEAKING' : 'VOICE ASSISTANT'}
-              </span>
-              <span className="hud-voice-quote">"{latestVoiceGuidance}"</span>
-            </div>
-          </div>
-
-          <div className="hud-voice-controls">
-            <button
-              type="button"
-              className="hud-voice-replay-btn"
-              onClick={() => triggerVoiceGuidance(latestVoiceGuidance)}
-              disabled={isMuted}
-              title="Replay spoken route assistance"
-            >
-              <Volume2Icon size={14} />
-              <span>Replay</span>
-            </button>
-
-            <button
-              type="button"
-              className={`hud-voice-mute-btn ${isMuted ? 'is-muted' : ''}`}
-              onClick={() => setIsMuted(!isMuted)}
-              title={isMuted ? 'Unmute voice' : 'Mute voice'}
-              aria-label={isMuted ? 'Unmute voice assistance' : 'Mute voice assistance'}
-            >
-              {isMuted ? <VolumeXIcon size={15} /> : <Volume2Icon size={15} />}
-            </button>
-          </div>
-        </div>
+        {/* Interactive AI Voice Assistant Panel */}
+        <VoiceAssistantPanel compact={true} />
 
         <div className="hud-speech-disclaimer">
           <Badge variant="neutral" size="xs">

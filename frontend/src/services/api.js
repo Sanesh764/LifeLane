@@ -98,6 +98,16 @@ export const apiClient = {
   },
 
   /**
+   * Get publicly visible active emergency mission for citizens
+   * GET /api/v1/trips/public-active
+   */
+  async getPublicActiveTrip() {
+    return request('/trips/public-active', {
+      method: 'GET',
+    });
+  },
+
+  /**
    * Submit live GPS location telemetry update for active trip
    * PATCH /api/v1/trips/:id/location
    */
@@ -150,10 +160,34 @@ export const apiClient = {
    * Register or update a browser Web Push subscription
    * POST /api/v1/notifications/subscriptions
    */
-  async registerSubscription(subData) {
+  async registerSubscription(subData, token) {
     return request('/notifications/subscriptions', {
       method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: JSON.stringify(subData),
+    });
+  },
+
+  /**
+   * Disable push notifications for the authenticated user
+   * POST /api/v1/notifications/subscriptions/disable
+   */
+  async disableSubscription(endpointHash, token) {
+    return request('/notifications/subscriptions/disable', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: JSON.stringify({ endpointHash }),
+    });
+  },
+
+  /**
+   * Get all registered push subscriptions for the authenticated user
+   * GET /api/v1/notifications/my-subscriptions
+   */
+  async getMySubscriptions(token) {
+    return request('/notifications/my-subscriptions', {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
   },
 

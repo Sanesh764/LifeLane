@@ -1,6 +1,10 @@
 import express from 'express';
 import { TrafficReport } from '../models/TrafficReport.js';
-import { getRelevantClustersForLocation, clusterActiveReports } from '../services/trafficClusteringService.js';
+import {
+  getRelevantClustersForLocation,
+  clusterActiveReports,
+  ingestReportIntoIncident,
+} from '../services/trafficClusteringService.js';
 
 const router = express.Router();
 
@@ -166,6 +170,11 @@ router.post('/reports', async (req, res, next) => {
     console.log(
       `[TrafficAPI] Created traffic report: ${report.reportType} on "${report.roadSegment}" (Corroborated: ${corroborationCount})`
     );
+
+    // Asynchronously ingest report into persistent cluster / incident without blocking response
+    ingestReportIntoIncident(report).catch((ingestErr) => {
+      console.warn('[TrafficAPI] Incident ingestion notice:', ingestErr.message);
+    });
 
     res.status(201).json({
       success: true,

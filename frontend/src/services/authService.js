@@ -26,13 +26,16 @@ let memoryUser = null;
 export function normalizeUser(user) {
   if (!user) return null;
   const assignedUnit = user.assignedUnit || {};
-  const isDriver = user.role === 'AMBULANCE_DRIVER' || user.role === 'ADMIN';
+  const isDriverRole = user.role === 'AMBULANCE_DRIVER';
+  const isAdminRole = user.role === 'ADMIN';
+  const isPublicUser = user.role === 'PUBLIC_USER' || user.role === 'ROAD_USER';
   const isActive = user.status === 'active';
   const isVerified = user.driverVerificationStatus === 'VERIFIED';
+  const isDriver = (isDriverRole || isAdminRole) && isActive && isVerified;
 
   return {
     id: user.id || user._id,
-    name: user.name || 'Authorized Driver',
+    name: user.name || (isDriver ? 'Authorized Driver' : 'Public User'),
     driverName: user.name || 'Authorized Driver',
     email: user.email,
     role: user.role,
@@ -43,14 +46,18 @@ export function normalizeUser(user) {
     vehicleNumber: assignedUnit.vehicleNumber || 'BR-01-EA-108',
     hospitalBase: assignedUnit.hospitalBase || 'PMCH Emergency Trauma Center',
     driverId: user.id ? `BR-DRV-${String(user.id).slice(-5).toUpperCase()}` : 'BR-DRV-10842',
-    authorized: isDriver && isActive && isVerified,
+    isDriver,
+    isPublicUser,
+    isAdmin: isAdminRole,
+    authorized: isDriver,
   };
 }
 
 function safeGetStorage(key) {
   try {
-    if (typeof window !== 'undefined' && window.sessionStorage) {
-      return window.sessionStorage.getItem(key);
+    if (typeof window !== 'undefined') {
+      const val = window.sessionStorage?.getItem(key) || window.localStorage?.getItem(key);
+      return val || null;
     }
   } catch (err) {
     console.warn('[authService] Storage read error:', err);
@@ -60,8 +67,9 @@ function safeGetStorage(key) {
 
 function safeSetStorage(key, value) {
   try {
-    if (typeof window !== 'undefined' && window.sessionStorage) {
-      window.sessionStorage.setItem(key, value);
+    if (typeof window !== 'undefined') {
+      window.sessionStorage?.setItem(key, value);
+      window.localStorage?.setItem(key, value);
     }
   } catch (err) {
     console.warn('[authService] Storage write error:', err);
@@ -70,8 +78,9 @@ function safeSetStorage(key, value) {
 
 function safeRemoveStorage(key) {
   try {
-    if (typeof window !== 'undefined' && window.sessionStorage) {
-      window.sessionStorage.removeItem(key);
+    if (typeof window !== 'undefined') {
+      window.sessionStorage?.removeItem(key);
+      window.localStorage?.removeItem(key);
     }
   } catch (err) {
     console.warn('[authService] Storage remove error:', err);
@@ -144,7 +153,81 @@ export const authService = {
   },
 
   /**
-   * Real backend driver login
+   * Public user registration
+   * POST /api/v1/auth/register
+   */
+  async register(name, email, password) {
+    const trimmedName = (name || '').trim();
+    const trimmedEmail = (email || '').trim().toLowerCase();
+    const cleanPassword = password || '';
+
+    if (!trimmedName || !trimmedEmail || !cleanPassword) {
+      return {
+        success: false,
+        error: 'Please fill in full name, email address, and password.',
+      };
+    }
+
+    if (cleanPassword.length < 8) {
+      return {
+        success: false,
+        error: 'Password must be at least 8 characters long.',
+      };
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          name: trimmedName,
+          email: trimmedEmail,
+          password: cleanPassword,
+        }),
+      });
+
+      let responseData = null;
+      try {
+        responseData = await response.json();
+      } catch {
+        // Non-JSON response
+      }
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: responseData?.error?.message || `Registration failed with status ${response.status}`,
+          code: responseData?.error?.code,
+        };
+      }
+
+      const { user, accessToken } = responseData?.data || {};
+      if (accessToken && user) {
+        this.setSession(accessToken, user);
+        return {
+          success: true,
+          user: this.getCurrentUser(),
+          token: accessToken,
+        };
+      }
+
+      return {
+        success: false,
+        error: 'Unexpected response from registration server.',
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: err.message || 'Network connection to server failed.',
+      };
+    }
+  },
+
+  /**
+   * Real backend user / driver login
    * POST /api/v1/auth/login
    */
   async login(email, password) {

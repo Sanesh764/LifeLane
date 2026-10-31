@@ -22,7 +22,9 @@ export function SimulationProvider({ children }) {
   // Authentication State
   const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const isAuthenticated = Boolean(currentUser && currentUser.authorized);
+  const isDriverAuthenticated = Boolean(currentUser && currentUser.authorized);
+  const isPublicAuthenticated = Boolean(currentUser && (currentUser.role === 'PUBLIC_USER' || currentUser.role === 'ROAD_USER'));
+  const isAuthenticated = Boolean(currentUser && currentUser.status === 'active');
 
   // Active Real Backend Trip State
   const [activeTrip, setActiveTrip] = useState(null);
@@ -247,6 +249,109 @@ export function SimulationProvider({ children }) {
       isMounted = false;
     };
   }, [startDriverLocationWatcher]);
+
+  // Periodic sync of active emergency corridor for all clients (Drivers & Citizens)
+  useEffect(() => {
+    let isMounted = true;
+    async function syncActiveEmergency() {
+      try {
+        const res = await apiClient.getPublicActiveTrip();
+        if (!isMounted) return;
+        if (res.success && res.data?.active && res.data.trip) {
+          const trip = res.data.trip;
+          setActiveTrip((prev) => {
+            if (prev && prev.id === trip.id) {
+              return {
+                ...prev,
+                currentLocation: {
+                  type: 'Point',
+                  coordinates: trip.currentCoordinates || prev.currentLocation?.coordinates,
+                },
+              };
+            }
+            return {
+              id: trip.id,
+              _id: trip.id,
+              status: 'ACTIVE',
+              assignedUnit: {
+                callSign: trip.ambulanceCallsign,
+                vehicleNumber: trip.vehicleNumber,
+              },
+              destination: {
+                label: trip.destinationHospital,
+                location: {
+                  type: 'Point',
+                  coordinates: trip.destinationCoordinates,
+                },
+              },
+              currentLocation: {
+                type: 'Point',
+                coordinates: trip.currentCoordinates,
+              },
+              origin: {
+                type: 'Point',
+                coordinates: trip.originCoordinates,
+              },
+              startedAt: trip.startedAt,
+            };
+          });
+
+          setTripStatus((prev) => (prev === 'ACTIVE' ? prev : 'ACTIVE'));
+          setTripStartTime((prev) => prev || new Date(trip.startedAt || Date.now()));
+
+          if (trip.destinationHospital) {
+            setSelectedDestination((prev) => ({
+              ...prev,
+              name: trip.destinationHospital,
+              shortName: trip.destinationHospital.split('(')[0].trim(),
+              coordinates: trip.destinationCoordinates || prev?.coordinates,
+            }));
+          }
+
+          const originPt = trip.currentCoordinates || trip.originCoordinates;
+          const destPt = trip.destinationCoordinates;
+          if (originPt && destPt) {
+            const distMeters = calculateDistanceMeters([originPt[1], originPt[0]], [destPt[1], destPt[0]]) || 5000;
+            const distKm = Number((distMeters / 1000).toFixed(1));
+            setCurrentRoute((prev) => {
+              if (prev && prev.id === `live-${trip.id}`) return prev;
+              return {
+                id: `live-${trip.id}`,
+                name: `Emergency Transit to ${trip.destinationHospital}`,
+                origin: originPt,
+                destination: { label: trip.destinationHospital, coordinates: destPt },
+                isLive: true,
+                totalDistanceKm: distKm,
+                currentEtaMins: Math.max(Math.round((distKm / 45) * 60), 2),
+                segments: [
+                  {
+                    id: 'live-seg-1',
+                    roadName: 'Live Emergency Corridor',
+                    distanceKm: distKm,
+                    distanceMeters: distMeters,
+                    coordinates: [originPt, destPt],
+                    status: 'FLOWING',
+                  },
+                ],
+              };
+            });
+          }
+        } else if (res.success && !res.data?.active) {
+          // If no active mission is running on the backend
+          setTripStatus((prev) => (prev === 'ACTIVE' ? 'IDLE' : prev));
+        }
+      } catch (err) {
+        // Silently skip if network or server is temporarily offline
+      }
+    }
+
+    syncActiveEmergency();
+    const interval = setInterval(syncActiveEmergency, 3500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Driver & Trip State
   const [selectedVehicle, setSelectedVehicle] = useState(DEMO_VEHICLES[0]);
@@ -629,32 +734,59 @@ export function SimulationProvider({ children }) {
     ]
   );
 
-  // Handle Driver Login via Real Backend
+  // Handle User Registration via Real Backend
+  const register = useCallback(async (name, email, password) => {
+    const result = await authService.register(name, email, password);
+    if (result.success) {
+      setCurrentUser(result.user);
+      addToast(
+        'Account Registered',
+        `Welcome to AmbuRoute, ${result.user.name}! Your public citizen account is active.`,
+        'success'
+      );
+      setActiveTab('public');
+      window.location.hash = 'public';
+      return { success: true, user: result.user };
+    }
+    return { success: false, error: result.error };
+  }, [addToast, setActiveTab]);
+
+  // Handle Driver & Public User Login via Real Backend
   const login = useCallback(async (email, password) => {
     const result = await authService.login(email, password);
     if (result.success) {
       setCurrentUser(result.user);
-      addToast(
-        'Driver Authenticated',
-        `Welcome back, ${result.user.driverName}. Verified backend session active.`,
-        'success'
-      );
+      const isDriver = result.user.isDriver || result.user.role === 'AMBULANCE_DRIVER';
 
-      // Check if there was a pending start action
-      if (pendingAction === 'START_AMBULANCE') {
-        setPendingAction(null);
-        setActiveTab('driver');
-        setDriverSubTab('start');
-        window.location.hash = 'driver/start';
+      if (isDriver) {
+        addToast(
+          'Driver Authenticated',
+          `Welcome back, ${result.user.driverName}. Verified driver session active.`,
+          'success'
+        );
+        if (pendingAction === 'START_AMBULANCE') {
+          setPendingAction(null);
+          setActiveTab('driver');
+          setDriverSubTab('start');
+          window.location.hash = 'driver/start';
+        } else {
+          setActiveTab('driver');
+          setDriverSubTab('home');
+          window.location.hash = 'driver/home';
+        }
       } else {
-        setActiveTab('driver');
-        setDriverSubTab('home');
-        window.location.hash = 'driver/home';
+        addToast(
+          'Signed In',
+          `Welcome back, ${result.user.name}. Public dashboard active.`,
+          'success'
+        );
+        setActiveTab('public');
+        window.location.hash = 'public';
       }
-      return { success: true };
+      return { success: true, user: result.user };
     }
     return { success: false, error: result.error };
-  }, [pendingAction, addToast]);
+  }, [pendingAction, addToast, setActiveTab, setDriverSubTab]);
 
   // Handle Driver Logout via Real Backend
   const logout = useCallback(async () => {
@@ -956,7 +1088,10 @@ export function SimulationProvider({ children }) {
     // Authentication
     currentUser,
     isAuthenticated,
+    isDriverAuthenticated,
+    isPublicAuthenticated,
     isAuthLoading,
+    register,
     login,
     logout,
     // Driver & Trip
@@ -983,6 +1118,7 @@ export function SimulationProvider({ children }) {
     setIsFocusedMissionMode,
     toggleFocusedMissionMode,
     latestVoiceGuidance,
+    setLatestVoiceGuidance,
     // Trip History & Driver Settings
     tripHistory,
     setTripHistory,
@@ -1020,6 +1156,7 @@ export function SimulationProvider({ children }) {
     isMuted,
     setIsMuted,
     isSpeaking,
+    setIsSpeaking,
     triggerVoiceGuidance,
     toasts,
     addToast,

@@ -75,7 +75,12 @@ export const env = {
     privateKey: vapidPrivateKey,
     subject: vapidSubject,
   },
-  NOTIFICATION_DEMO_BROADCAST_ALL: process.env.NOTIFICATION_DEMO_BROADCAST_ALL === 'true',
+  NOTIFICATION_DEMO_BROADCAST_ALL:
+    process.env.NOTIFICATION_DEMO_BROADCAST_ALL !== undefined
+      ? process.env.NOTIFICATION_DEMO_BROADCAST_ALL === 'true'
+      : undefined,
+  EMERGENCY_NOTIFICATION_MODE:
+    process.env.EMERGENCY_NOTIFICATION_MODE || 'GLOBAL',
   ALERTS: {
     outerRadiusMeters: parseInt(process.env.ALERT_OUTER_RADIUS_METERS || '5000', 10),
     nearRadiusMeters: parseInt(process.env.ALERT_NEAR_RADIUS_METERS || '2000', 10),
@@ -84,5 +89,22 @@ export const env = {
     locationMaxAgeSeconds: parseInt(process.env.ROAD_USER_LOCATION_MAX_AGE_SECONDS || '90', 10),
     maxLocationAccuracyMeters: parseInt(process.env.ROAD_USER_MAX_LOCATION_ACCURACY_METERS || '200', 10),
     pushTtlSeconds: parseInt(process.env.ALERT_PUSH_TTL_SECONDS || '1800', 10),
+  },
+  TRAFFIC: {
+    clusterRadiusMeters: parseInt(process.env.TRAFFIC_CLUSTER_RADIUS_METERS || '1000', 10),
+    clusterWindowMinutes: parseInt(process.env.TRAFFIC_CLUSTER_WINDOW_MINUTES || '60', 10),
+    corroborationThreshold: parseInt(process.env.TRAFFIC_CORROBORATION_THRESHOLD || '3', 10),
+  },
+  META_AI: {
+    apiKey: process.env.COMET_API_KEY || process.env.MODEL_API_KEY || process.env.META_API_KEY || null,
+    model: process.env.META_MODEL || 'muse-spark-1.3',
+    baseUrl: process.env.META_API_BASE_URL || 'https://api.meta.ai/v1',
+  },
+  GROQ: {
+    apiKey: process.env.GROQ_API_KEY || null,
+    whisperModel: process.env.GROQ_WHISPER_MODEL || 'whisper-large-v3-turbo',
+    chatModel: process.env.GROQ_CHAT_MODEL || 'openai/gpt-oss-20b',
+    ttsModel: process.env.GROQ_TTS_MODEL || 'canopylabs/orpheus-v1-english',
+    baseUrl: 'https://api.groq.com/openai/v1',
   },
 };

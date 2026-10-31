@@ -1,5 +1,7 @@
 import './env.js';
 import mongoose from 'mongoose';
+import dns from "dns";
+dns.setServers(['1.1.1.1','8.8.8.8']);
 
 // Direct replica set fallback for environments where Node c-ares SRV DNS query is refused
 const DIRECT_FALLBACK_URI =process.env.MONGODB_URL2;
@@ -17,13 +19,13 @@ export const connectDB = async () => {
 
   try {
     const conn = await mongoose.connect(primaryUri, connectionOptions);
-    console.log(`[MongoDB] Connected to database: ${conn.connection.host}/${conn.connection.name}`);
+    console.log(`MongoDB  database connected successfully:`);
     return conn;
   } catch (primaryError) {
     console.warn(`[MongoDB Warning] Primary SRV connection failed (${primaryError.message}). Attempting direct replica set fallback...`);
     try {
       const fallbackConn = await mongoose.connect(DIRECT_FALLBACK_URI, connectionOptions);
-      console.log(`[MongoDB] Connected via direct replica set: ${fallbackConn.connection.host}/${fallbackConn.connection.name}`);
+      console.log(`secondary monodb databse connected`);
       return fallbackConn;
     } catch (fallbackError) {
       console.error(`[MongoDB Error] Fallback connection also failed: ${fallbackError.message}`);

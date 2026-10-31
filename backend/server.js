@@ -10,6 +10,7 @@ import tripRouter from './routers/trips.js';
 import notificationRouter from './routers/notifications.js';
 import hospitalRouter from './routers/hospitals.js';
 import trafficRouter from './routers/traffic.js';
+import voiceRouter from './routers/voice.js';
 import { stopAllTripAlertIntervals } from './services/notificationService.js';
 import { notFoundHandler, errorHandler } from './middlewares/errorHandler.js';
 
@@ -31,7 +32,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 // Health check endpoints (Database-independent)
 const handleHealth = (req, res) => {
@@ -74,6 +75,7 @@ app.use('/api/v1/notifications', notificationRouter);
 app.use('/api/v1/push-subscriptions', notificationRouter);
 app.use('/api/v1/hospitals', hospitalRouter);
 app.use('/api/v1/traffic', trafficRouter);
+app.use('/api/v1/voice', voiceRouter);
 
 // 404 Handler for unknown routes
 app.use(notFoundHandler);

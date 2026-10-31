@@ -26,10 +26,10 @@ const UserSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: {
-        values: ['AMBULANCE_DRIVER', 'ROAD_USER', 'ADMIN'],
-        message: 'Role must be AMBULANCE_DRIVER, ROAD_USER, or ADMIN',
+        values: ['AMBULANCE_DRIVER', 'PUBLIC_USER', 'ROAD_USER', 'ADMIN'],
+        message: 'Role must be AMBULANCE_DRIVER, PUBLIC_USER, ROAD_USER, or ADMIN',
       },
-      default: 'ROAD_USER',
+      default: 'PUBLIC_USER',
       uppercase: true,
       index: true,
     },
@@ -39,7 +39,9 @@ const UserSchema = new mongoose.Schema(
         values: ['active', 'pending', 'disabled', 'suspended'],
         message: 'Status must be active, pending, disabled, or suspended',
       },
-      default: 'pending',
+      default: function () {
+        return this.role === 'AMBULANCE_DRIVER' ? 'pending' : 'active';
+      },
       lowercase: true,
       index: true,
     },

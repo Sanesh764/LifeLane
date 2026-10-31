@@ -53,6 +53,12 @@ const pushSubscriptionSchema = new mongoose.Schema(
       index: true,
       trim: true,
     },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
     keys: {
       p256dh: {
         type: String,
@@ -140,9 +146,9 @@ pushSubscriptionSchema.index({
   lastLocationCapturedAt: -1,
 });
 
-// Pre-save hook: compute endpointHash if not present or endpoint modified
-pushSubscriptionSchema.pre('save', function () {
-  if (this.isModified('endpoint') || !this.endpointHash) {
+// Pre-validate hook: compute endpointHash if not present or endpoint modified
+pushSubscriptionSchema.pre('validate', function () {
+  if (this.endpoint && (this.isModified('endpoint') || !this.endpointHash)) {
     this.endpointHash = hashEndpoint(this.endpoint);
   }
 });
@@ -154,6 +160,9 @@ pushSubscriptionSchema.set('toJSON', {
     delete ret.endpoint;
     delete ret.keys;
     ret.id = ret._id.toString();
+    if (ret.userId && typeof ret.userId === 'object' && ret.userId.toString) {
+      ret.userId = ret.userId.toString();
+    }
     return ret;
   },
 });

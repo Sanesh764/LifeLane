@@ -272,26 +272,34 @@ export function ActiveMission() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <AlertTriangleIcon size={14} className="text-amber" />
                     <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#9a3412' }}>
-                      Corroborated Incidents ({trafficClusters.length})
+                      Traffic Incidents & Corridor Advisories ({trafficClusters.length})
                     </span>
                   </div>
-                  <Badge variant="warning" size="xs">
-                    {trafficClusters[0]?.advisory?.metaAiStatus === 'SUCCESS' ? 'META AI' : 'TACTICAL ADVISORY'}
+                  <Badge variant={trafficClusters[0]?.advisory?.summarySource === 'META_AI' ? 'critical' : 'warning'} size="xs">
+                    {trafficClusters[0]?.advisory?.summarySource === 'META_AI' ? 'META AI' : 'SYSTEM ADVISORY'}
                   </Badge>
                 </div>
                 {trafficClusters.slice(0, 3).map((cl, idx) => (
                   <div key={idx} style={{ padding: '8px 0', borderTop: idx > 0 ? '1px dashed #fdba74' : 'none' }}>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
-                      {cl.roadSegment} ({cl.distinctReporters} reports)
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                        {cl.roadSegment}
+                      </span>
+                      <Badge variant={cl.corroborationStatus === 'CORROBORATED' ? 'critical' : cl.corroborationStatus === 'DEVELOPING' ? 'warning' : 'neutral'} size="xs">
+                        {cl.corroborationStatus || 'UNVERIFIED'} ({cl.distinctReporters || cl.distinctReporterCount || 1} {cl.distinctReporters === 1 ? 'reporter' : 'reporters'})
+                      </Badge>
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px' }}>
-                      {cl.advisory?.summary || 'Hazard reported on upcoming sector.'}
+                    <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '3px' }}>
+                      {cl.advisory?.summary || 'Community observations reported on upcoming sector.'}
                     </div>
-                    {cl.advisory?.recommendedCaution && (
+                    {(cl.advisory?.recommendedAction || cl.advisory?.recommendedCaution) && (
                       <div style={{ fontSize: '0.75rem', color: '#c2410c', marginTop: '4px', fontStyle: 'italic' }}>
-                        Guidance: {cl.advisory.recommendedCaution}
+                        Guidance: {cl.advisory?.recommendedAction || cl.advisory?.recommendedCaution}
                       </div>
                     )}
+                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>
+                      {cl.advisory?.verificationNote || 'Community-reported; not independently verified.'} · Source: {cl.advisory?.summarySource || 'SYSTEM_FALLBACK'}
+                    </div>
                   </div>
                 ))}
               </Card>

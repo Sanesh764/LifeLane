@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from './api.js';
+import { authService } from './authService.js';
 
 const STORAGE_ENDPOINT_HASH = 'amburoute_endpoint_hash';
 const STORAGE_LOCATION_CONSENT = 'amburoute_location_consent';
@@ -12,10 +13,11 @@ let heartbeatTimer = null;
 let inFlightRegistrationPromise = null;
 
 async function deduplicatedRegister(payload) {
+  const token = authService.getToken();
   if (inFlightRegistrationPromise) {
     return inFlightRegistrationPromise;
   }
-  inFlightRegistrationPromise = apiClient.registerSubscription(payload).finally(() => {
+  inFlightRegistrationPromise = apiClient.registerSubscription(payload, token).finally(() => {
     inFlightRegistrationPromise = null;
   });
   return inFlightRegistrationPromise;
@@ -251,6 +253,41 @@ export const pushService = {
         error: { code: 'SUBSCRIPTION_ERROR', message: err.message },
       };
     }
+  },
+
+  /**
+   * Disable Web Push Notifications
+   * Unsubscribes in browser PushManager and notifies backend to disable subscription.
+   */
+  async disableAlerts() {
+    const token = authService.getToken();
+    const endpointHash = this.getStoredEndpointHash();
+
+    try {
+      if (this.isSupported()) {
+        const reg = await this.getServiceWorkerRegistration();
+        const existingSub = await reg?.pushManager?.getSubscription();
+        if (existingSub) {
+          await existingSub.unsubscribe();
+        }
+      }
+    } catch (unsubErr) {
+      console.warn('[pushService] Browser unsubscribe error:', unsubErr);
+    }
+
+    if (token && endpointHash) {
+      try {
+        await apiClient.disableSubscription(endpointHash, token);
+      } catch (backendErr) {
+        console.warn('[pushService] Backend disable notification error:', backendErr);
+      }
+    }
+
+    try {
+      localStorage.removeItem(STORAGE_ENDPOINT_HASH);
+    } catch {}
+
+    return { success: true };
   },
 
   /**

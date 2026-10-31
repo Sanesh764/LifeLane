@@ -66,11 +66,25 @@ export const findEligibleSubscribers = async (ambulanceCoords, maxDistanceMeters
 /**
  * Dispatches emergency alerts for an active trip to all nearby eligible subscribers
  */
-export const dispatchAlertsForTrip = async (tripId, ambulanceCoords) => {
+export const dispatchAlertsForTrip = async (tripId, ambulanceCoords, tripData = null) => {
   if (!tripId) return { dispatched: 0, suppressed: 0, failed: 0 };
 
   const pushProvider = getPushProvider();
-  const isDemo = env.NOTIFICATION_DEMO_BROADCAST_ALL;
+  const isGlobal =
+    env.NOTIFICATION_DEMO_BROADCAST_ALL === true ||
+    (env.EMERGENCY_NOTIFICATION_MODE === 'GLOBAL' && env.NOTIFICATION_DEMO_BROADCAST_ALL !== false);
+
+  // Retrieve non-sensitive trip context (callsign, destination hospital)
+  let trip = tripData;
+  if (!trip && tripId) {
+    try {
+      trip = await AmbulanceTrip.findById(tripId).lean();
+    } catch {
+      trip = null;
+    }
+  }
+  const ambulanceCallsign = trip?.assignedUnit?.callSign || null;
+  const destinationHospital = trip?.destination?.label || null;
 
   // Total registered for visibility
   const totalRegistered = await PushSubscription.countDocuments({
@@ -80,20 +94,20 @@ export const dispatchAlertsForTrip = async (tripId, ambulanceCoords) => {
 
   // Determine eligible subscribers based on mode
   let eligibleSubscribers;
-  if (isDemo) {
-    // Demo broadcast: ignore location, include all active, consented subs
+  if (isGlobal) {
+    // Global broadcast: ignore location, include all active, consented subscriptions
     eligibleSubscribers = await PushSubscription.find({
       status: 'ACTIVE',
       notificationConsent: true,
     });
   } else {
-    // Normal proximity mode
+    // Proximity mode: require coordinates and geospatial proximity
     if (!ambulanceCoords) return { dispatched: 0, suppressed: 0, failed: 0 };
     eligibleSubscribers = await findEligibleSubscribers(ambulanceCoords);
   }
 
   console.log(`[PushDispatch] === START DISPATCH for Trip ${tripId} ===`);
-  console.log(`[PushDispatch] Mode: ${isDemo ? 'DEMO_BROADCAST_ALL' : 'PROXIMITY_GEOSPATIAL'} | Total Subscriptions: ${totalRegistered} | Eligible: ${eligibleSubscribers.length}`);
+  console.log(`[PushDispatch] Mode: ${isGlobal ? 'GLOBAL' : 'PROXIMITY_GEOSPATIAL'} | Total Subscriptions: ${totalRegistered} | Eligible: ${eligibleSubscribers.length}`);
 
   let dispatched = 0;
   let suppressed = 0;
@@ -105,8 +119,8 @@ export const dispatchAlertsForTrip = async (tripId, ambulanceCoords) => {
     const subHashShort = sub.endpointHash ? sub.endpointHash.substring(0, 16) : 'unknown';
 
     try {
-      if (isDemo) {
-        // Prevent duplicate notifications on duplicate trip-start events in demo mode
+      if (isGlobal) {
+        // Prevent duplicate notifications on duplicate trip-start events in global mode
         const isSameTrip = sub.lastNotifiedTripId && sub.lastNotifiedTripId.toString() === tripId.toString();
         if (isSameTrip) {
           suppressed++;
@@ -116,21 +130,30 @@ export const dispatchAlertsForTrip = async (tripId, ambulanceCoords) => {
 
         tier = ALERT_TIERS.NEAR;
         const payload = {
-          title: '🚑 AmbuRoute — Demo Ambulance Alert',
-          body: 'An ambulance mission has just started. This is a hackathon demonstration notification.',
+          title: 'AmbuRoute Emergency Alert 🚑',
+          body: 'An ambulance has started an emergency mission. Please give way and keep the road clear.',
           icon: '/icons/alert-icon-192.png',
           badge: '/icons/alert-badge-72.png',
-          tag: `amburoute-demo-${tripId}`,
+          tag: `amburoute-emergency-${tripId}`,
           renotify: true,
           requireInteraction: true,
-          data: { tripId: tripId.toString(), mode: 'DEMO', url: '/#alerts' },
+          data: {
+            missionId: tripId.toString(),
+            tripId: tripId.toString(),
+            ambulanceCallsign: ambulanceCallsign || undefined,
+            destinationHospital: destinationHospital || undefined,
+            eventType: 'EMERGENCY_STARTED',
+            mode: 'GLOBAL',
+            timestamp: new Date().toISOString(),
+            url: '/#alerts',
+          },
         };
 
-        console.log(`[PushDispatch] Sub #${subHashShort}: Sending Demo Web Push...`);
+        console.log(`[PushDispatch] Sub #${subHashShort}: Sending Global Emergency Web Push...`);
         const sendRes = await pushProvider.sendNotification(
           { endpoint: sub.endpoint, endpointHash: sub.endpointHash, keys: sub.keys },
           payload,
-          { topic: `demo-${tripId}`, urgency: 'high' }
+          { topic: `emergency-${tripId}`, urgency: 'high' }
         );
         console.log(`[PushDispatch] Sub #${subHashShort}: DELIVERED (Status ${sendRes.statusCode || 201})`);
 
@@ -222,6 +245,7 @@ export const dispatchAlertsForTrip = async (tripId, ambulanceCoords) => {
       if (sendErr.isExpired || sendErr.statusCode === 410 || sendErr.statusCode === 404) {
         console.log(`[PushDispatch] Sub #${subHashShort}: Subscription expired or unsubscribed on browser. Marked EXPIRED.`);
         sub.status = 'EXPIRED';
+        sub.notificationConsent = false;
         await sub.save();
         await AlertDispatch.create({
           tripId,
