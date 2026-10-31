@@ -47,6 +47,8 @@ export function OverviewPage() {
 
   const isTripActive = tripStatus === 'ACTIVE';
   const [activeSection, setActiveSection] = useState('hero');
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const [copiedSection, setCopiedSection] = useState(null);
 
   // Smooth scroll helper for in-page section links
   const scrollToSection = (id) => {
@@ -60,6 +62,7 @@ export function OverviewPage() {
   // Track active scroll section
   useEffect(() => {
     const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 400);
       const sections = [
         'hero',
         'how-it-works',
@@ -100,6 +103,16 @@ export function OverviewPage() {
     } else {
       setActiveTab('login');
       window.location.hash = 'login/driver';
+    }
+  };
+
+  const handleCopySectionLink = (sectionId) => {
+    const url = `${window.location.origin}/#${sectionId}`;
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).then(() => {
+        setCopiedSection(sectionId);
+        setTimeout(() => setCopiedSection(null), 2000);
+      }).catch(() => {});
     }
   };
 
@@ -1248,6 +1261,20 @@ export function OverviewPage() {
           </div>
         </div>
       </section>
+
+      {/* Floating Back to Top Quick Navigation */}
+      {showBackToTop && (
+        <button
+          type="button"
+          className="overview-back-to-top-btn"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label="Back to top"
+          title="Scroll back to top"
+        >
+          <ArrowUpIcon size={16} />
+          <span>Top</span>
+        </button>
+      )}
     </div>
   );
 }

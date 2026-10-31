@@ -1504,6 +1504,8 @@
   .overview-subnav {
     margin: -1rem -1rem 1.5rem -1rem;
     padding: 0.5rem 1rem;
+    mask-image: linear-gradient(to right, black 88%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black 88%, transparent 100%);
   }
   .overview-page-root {
     gap: 3rem;

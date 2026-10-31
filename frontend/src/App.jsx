@@ -5,6 +5,7 @@ import { useSimulation } from './context/useSimulation.js';
 import { authService } from './services/authService.js';
 import { Header } from './components/layout/Header.jsx';
 import { Footer } from './components/layout/Footer.jsx';
+import { EmergencyBanner } from './components/layout/EmergencyBanner.jsx';
 import { OverviewPage } from './pages/OverviewPage.jsx';
 import { PublicDashboardPage } from './pages/PublicDashboardPage.jsx';
 import { DriverPage } from './pages/DriverPage.jsx';
@@ -84,6 +85,7 @@ function AppContent() {
 
   return (
     <div className="app-shell">
+      <EmergencyBanner />
       <Header />
       <main className="app-main">
         <div className="app-main__container">
