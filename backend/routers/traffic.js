@@ -1,10 +1,14 @@
 import express from 'express';
+import { isDbConnected } from '../config/db.js';
 import { TrafficReport } from '../models/TrafficReport.js';
 import {
   getRelevantClustersForLocation,
   clusterActiveReports,
   ingestReportIntoIncident,
 } from '../services/trafficClusteringService.js';
+import { ApiError } from '../utils/ApiError.js';
+import { ApiResponse } from '../utils/apiResponse.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = express.Router();
 
@@ -51,8 +55,16 @@ function formatReport(doc) {
  * POST /api/v1/traffic/reports
  * Submit a real-time community road condition observation
  */
-router.post('/reports', async (req, res, next) => {
-  try {
+router.post(
+  '/reports',
+  asyncHandler(async (req, res) => {
+    if (!isDbConnected()) {
+      throw ApiError.serviceUnavailable(
+        'Database service is temporarily unavailable.',
+        'DATABASE_UNAVAILABLE'
+      );
+    }
+
     const {
       reportType,
       roadSegment,
@@ -65,7 +77,7 @@ router.post('/reports', async (req, res, next) => {
       locationStatus,
       source,
       reporterId: clientReporterId,
-    } = req.body;
+    } = req.body || {};
 
     const reporterId = (
       clientReporterId ||
@@ -76,32 +88,26 @@ router.post('/reports', async (req, res, next) => {
 
     // 1. Validate reportType
     if (!reportType || typeof reportType !== 'string') {
-      return res.status(400).json({
-        error: {
-          code: 'MISSING_REPORT_TYPE',
-          message: 'reportType is required and must be one of: CLEAR, TRAFFIC_HIGH, ROAD_BLOCKED, CANNOT_ASSESS.',
-        },
-      });
+      throw ApiError.badRequest(
+        'reportType is required and must be one of: CLEAR, TRAFFIC_HIGH, ROAD_BLOCKED, CANNOT_ASSESS.',
+        'MISSING_REPORT_TYPE'
+      );
     }
 
     const upperType = reportType.trim().toUpperCase();
     if (!VALID_REPORT_TYPES.includes(upperType)) {
-      return res.status(400).json({
-        error: {
-          code: 'INVALID_REPORT_TYPE',
-          message: `reportType must be one of: ${VALID_REPORT_TYPES.join(', ')}.`,
-        },
-      });
+      throw ApiError.badRequest(
+        `reportType must be one of: ${VALID_REPORT_TYPES.join(', ')}.`,
+        'INVALID_REPORT_TYPE'
+      );
     }
 
     // 2. Validate roadSegment
     if (!roadSegment || typeof roadSegment !== 'string' || roadSegment.trim().length === 0) {
-      return res.status(400).json({
-        error: {
-          code: 'MISSING_ROAD_SEGMENT',
-          message: 'roadSegment name is required and cannot be empty.',
-        },
-      });
+      throw ApiError.badRequest(
+        'roadSegment name is required and cannot be empty.',
+        'MISSING_ROAD_SEGMENT'
+      );
     }
 
     const cleanRoad = roadSegment.trim();
@@ -176,23 +182,29 @@ router.post('/reports', async (req, res, next) => {
       console.warn('[TrafficAPI] Incident ingestion notice:', ingestErr.message);
     });
 
-    res.status(201).json({
-      success: true,
-      data: {
+    return ApiResponse.created(
+      {
         report: formatReport(report),
       },
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+      'Traffic report submitted successfully.'
+    ).send(res);
+  })
+);
 
 /**
  * GET /api/v1/traffic/reports
  * Fetch active real-time traffic condition reports
  */
-router.get('/reports', async (req, res, next) => {
-  try {
+router.get(
+  '/reports',
+  asyncHandler(async (req, res) => {
+    if (!isDbConnected()) {
+      throw ApiError.serviceUnavailable(
+        'Database service is temporarily unavailable.',
+        'DATABASE_UNAVAILABLE'
+      );
+    }
+
     const rawLat = req.query.lat ?? req.query.latitude;
     const rawLng = req.query.lng ?? req.query.longitude;
     const rawRadius = req.query.radius ?? req.query.radiusMeters;
@@ -227,24 +239,30 @@ router.get('/reports', async (req, res, next) => {
       .sort({ capturedAt: -1 })
       .limit(50);
 
-    res.status(200).json({
-      success: true,
-      data: {
+    return ApiResponse.ok(
+      {
         reports: reports.map(formatReport),
         count: reports.length,
       },
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+      'Active traffic reports retrieved successfully.'
+    ).send(res);
+  })
+);
 
 /**
  * GET /api/v1/traffic/clusters
  * Fetch clustered, corroborated traffic incidents and AI/deterministic corridor advisories
  */
-router.get('/clusters', async (req, res, next) => {
-  try {
+router.get(
+  '/clusters',
+  asyncHandler(async (req, res) => {
+    if (!isDbConnected()) {
+      throw ApiError.serviceUnavailable(
+        'Database service is temporarily unavailable.',
+        'DATABASE_UNAVAILABLE'
+      );
+    }
+
     const rawLat = req.query.lat ?? req.query.latitude;
     const rawLng = req.query.lng ?? req.query.longitude;
     const rawRadius = req.query.radius ?? req.query.radiusMeters;
@@ -256,12 +274,7 @@ router.get('/clusters', async (req, res, next) => {
       const radius = Number(rawRadius) || 15000;
 
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        return res.status(400).json({
-          error: {
-            code: 'INVALID_COORDINATES',
-            message: 'lat and lng must be valid numbers',
-          },
-        });
+        throw ApiError.badRequest('lat and lng must be valid numbers', 'INVALID_COORDINATES');
       }
 
       clusters = await getRelevantClustersForLocation(lat, lng, radius);
@@ -269,16 +282,14 @@ router.get('/clusters', async (req, res, next) => {
       clusters = await clusterActiveReports();
     }
 
-    res.status(200).json({
-      success: true,
-      data: {
+    return ApiResponse.ok(
+      {
         clusters,
         count: clusters.length,
       },
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+      'Traffic clusters retrieved successfully.'
+    ).send(res);
+  })
+);
 
 export default router;

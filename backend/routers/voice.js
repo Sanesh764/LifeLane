@@ -1,6 +1,10 @@
 import express from 'express';
+import { isDbConnected } from '../config/db.js';
 import { authenticate, requireRole } from '../middlewares/auth.js';
 import { voiceAssistantService } from '../services/voiceAssistantService.js';
+import { ApiError } from '../utils/ApiError.js';
+import { ApiResponse } from '../utils/apiResponse.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = express.Router();
 
@@ -10,8 +14,18 @@ const router = express.Router();
  * Accepts spoken audio (base64) OR typed text, retrieves real-time trip & traffic context,
  * infers intent using Groq LLM, generates grounded response, and optionally returns synthesized speech.
  */
-router.post('/assistant', authenticate, requireRole('AMBULANCE_DRIVER'), async (req, res, next) => {
-  try {
+router.post(
+  '/assistant',
+  authenticate,
+  requireRole('AMBULANCE_DRIVER'),
+  asyncHandler(async (req, res) => {
+    if (!isDbConnected()) {
+      throw ApiError.serviceUnavailable(
+        'Database service is temporarily unavailable.',
+        'DATABASE_UNAVAILABLE'
+      );
+    }
+
     const { audioBase64, mimeType, textQuery, liveCoordinates, liveRoadName } = req.body || {};
 
     let queryText = textQuery ? String(textQuery).trim() : '';
@@ -27,36 +41,36 @@ router.post('/assistant', authenticate, requireRole('AMBULANCE_DRIVER'), async (
         queryText = transcriptionResult.text;
       } catch (sttErr) {
         console.warn('[VoiceRouter] Transcription failed:', sttErr.message);
-        return res.status(422).json({
-          error: {
-            code: 'TRANSCRIPTION_FAILED',
-            message: `Could not transcribe voice audio: ${sttErr.message}`,
-          },
-        });
+        throw new ApiError(
+          422,
+          `Could not transcribe voice audio: ${sttErr.message}`,
+          'TRANSCRIPTION_FAILED'
+        );
       }
     }
 
     if (!queryText && audioBase64) {
       // Audio was provided, but Whisper could not detect intelligible speech (silence / low volume / quick click)
-      return res.status(200).json({
-        success: true,
-        transcript: '[Inaudible speech]',
-        intent: 'HELP',
-        spokenSummary: "I could not hear your question clearly. Please press and hold to speak again.",
-        detailedAnswer: "No clear speech detected. Please press and hold the Push to Talk button while speaking, or select one of the quick inquiry presets below.",
-        recommendedAction: 'Hold the AI Mic button while speaking clearly.',
-        audio: null,
-        dataSources: { source: 'Voice Inaudible Fallback' },
-      });
+      return ApiResponse.ok(
+        {
+          transcript: '[Inaudible speech]',
+          intent: 'HELP',
+          spokenSummary: 'I could not hear your question clearly. Please press and hold to speak again.',
+          detailedAnswer:
+            'No clear speech detected. Please press and hold the Push to Talk button while speaking, or select one of the quick inquiry presets below.',
+          recommendedAction: 'Hold the AI Mic button while speaking clearly.',
+          audio: null,
+          dataSources: { source: 'Voice Inaudible Fallback' },
+        },
+        'Inaudible speech detected; guidance provided.'
+      ).send(res);
     }
 
     if (!queryText) {
-      return res.status(400).json({
-        error: {
-          code: 'INVALID_REQUEST',
-          message: 'Either audioBase64 with speech or textQuery must be provided.',
-        },
-      });
+      throw ApiError.badRequest(
+        'Either audioBase64 with speech or textQuery must be provided.',
+        'INVALID_REQUEST'
+      );
     }
 
     // Process grounded driver inquiry with live mission state
@@ -75,40 +89,44 @@ router.post('/assistant', authenticate, requireRole('AMBULANCE_DRIVER'), async (
       console.warn('[VoiceRouter] TTS synthesis warning:', ttsErr.message);
     }
 
-    return res.status(200).json({
-      success: true,
-      transcript: queryText,
-      intent: result.intent,
-      spokenSummary: result.spokenSummary,
-      detailedAnswer: result.detailedAnswer,
-      recommendedAction: result.recommendedAction,
-      audio: ttsAudio
-        ? {
-            base64: ttsAudio.audioBase64,
-            mimeType: ttsAudio.mimeType,
-          }
-        : null,
-      dataSources: result.dataSources,
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+    return ApiResponse.ok(
+      {
+        transcript: queryText,
+        intent: result.intent,
+        spokenSummary: result.spokenSummary,
+        detailedAnswer: result.detailedAnswer,
+        recommendedAction: result.recommendedAction,
+        audio: ttsAudio
+          ? {
+              base64: ttsAudio.audioBase64,
+              mimeType: ttsAudio.mimeType,
+            }
+          : null,
+        dataSources: result.dataSources,
+      },
+      'Voice assistant query processed successfully.'
+    ).send(res);
+  })
+);
 
 /**
  * POST /api/v1/voice/transcribe
  * Transcribe raw speech buffer to text without full assistant reasoning
  */
-router.post('/transcribe', authenticate, async (req, res, next) => {
-  try {
+router.post(
+  '/transcribe',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    if (!isDbConnected()) {
+      throw ApiError.serviceUnavailable(
+        'Database service is temporarily unavailable.',
+        'DATABASE_UNAVAILABLE'
+      );
+    }
+
     const { audioBase64, mimeType } = req.body || {};
     if (!audioBase64 || typeof audioBase64 !== 'string') {
-      return res.status(400).json({
-        error: {
-          code: 'AUDIO_REQUIRED',
-          message: 'audioBase64 string is required.',
-        },
-      });
+      throw ApiError.badRequest('audioBase64 string is required.', 'AUDIO_REQUIRED');
     }
 
     const audioBuffer = Buffer.from(audioBase64, 'base64');
@@ -117,41 +135,45 @@ router.post('/transcribe', authenticate, async (req, res, next) => {
       mimeType || 'audio/webm'
     );
 
-    return res.status(200).json({
-      success: true,
-      text: result.text,
-      durationMs: result.durationMs,
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+    return ApiResponse.ok(
+      {
+        text: result.text,
+        durationMs: result.durationMs,
+      },
+      'Audio transcribed successfully.'
+    ).send(res);
+  })
+);
 
 /**
  * POST /api/v1/voice/speak
  * Synthesize text into speech audio
  */
-router.post('/speak', authenticate, async (req, res, next) => {
-  try {
+router.post(
+  '/speak',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    if (!isDbConnected()) {
+      throw ApiError.serviceUnavailable(
+        'Database service is temporarily unavailable.',
+        'DATABASE_UNAVAILABLE'
+      );
+    }
+
     const { text } = req.body || {};
     if (!text || typeof text !== 'string') {
-      return res.status(400).json({
-        error: {
-          code: 'TEXT_REQUIRED',
-          message: 'text string is required.',
-        },
-      });
+      throw ApiError.badRequest('text string is required.', 'TEXT_REQUIRED');
     }
 
     const ttsResult = await voiceAssistantService.synthesizeSpeech(text);
-    return res.status(200).json({
-      success: true,
-      audio: ttsResult,
-      fallbackRequired: !ttsResult,
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+    return ApiResponse.ok(
+      {
+        audio: ttsResult,
+        fallbackRequired: !ttsResult,
+      },
+      'Speech synthesized successfully.'
+    ).send(res);
+  })
+);
 
 export default router;

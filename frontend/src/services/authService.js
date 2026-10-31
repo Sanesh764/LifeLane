@@ -157,14 +157,17 @@ export const authService = {
    * POST /api/v1/auth/register
    */
   async register(name, email, password) {
-    const trimmedName = (name || '').trim();
     const trimmedEmail = (email || '').trim().toLowerCase();
     const cleanPassword = password || '';
+    const trimmedName = (name || '').trim();
+    // Default name from email prefix if left blank
+    const emailPrefix = trimmedEmail.split('@')[0].replace(/[._-]+/g, ' ').trim();
+    const finalName = trimmedName || (emailPrefix ? emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1) : 'Citizen User');
 
-    if (!trimmedName || !trimmedEmail || !cleanPassword) {
+    if (!trimmedEmail || !cleanPassword) {
       return {
         success: false,
-        error: 'Please fill in full name, email address, and password.',
+        error: 'Please fill in email address and password.',
       };
     }
 
@@ -183,7 +186,7 @@ export const authService = {
           Accept: 'application/json',
         },
         body: JSON.stringify({
-          name: trimmedName,
+          name: finalName,
           email: trimmedEmail,
           password: cleanPassword,
         }),
@@ -230,7 +233,7 @@ export const authService = {
    * Real backend user / driver login
    * POST /api/v1/auth/login
    */
-  async login(email, password) {
+  async login(email, password, { allowPublic = false } = {}) {
     const trimmedEmail = (email || '').trim().toLowerCase();
     const cleanPassword = password || '';
 
@@ -324,12 +327,20 @@ export const authService = {
 
       const normalized = normalizeUser(payload.user);
 
-      // Verify that backend verified the account as an active authorized driver
-      if (!normalized.authorized) {
+      // Verify role authorization based on target interface
+      if (!allowPublic && !normalized.authorized) {
         this.clearSession();
         return {
           success: false,
           error: 'Account authenticated, but lacks verified driver permissions.',
+        };
+      }
+
+      if (normalized.status !== 'active') {
+        this.clearSession();
+        return {
+          success: false,
+          error: `Account is ${normalized.status}. Active account status required.`,
         };
       }
 
@@ -383,7 +394,13 @@ export const authService = {
       }
 
       const normalized = normalizeUser(user);
-      if (!normalized.authorized) {
+      // Retain session for active verified drivers AND active public citizens
+      if (!normalized.authorized && !normalized.isPublicUser) {
+        this.clearSession();
+        return null;
+      }
+
+      if (normalized.status !== 'active') {
         this.clearSession();
         return null;
       }

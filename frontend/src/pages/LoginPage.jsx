@@ -24,9 +24,13 @@ export function LoginPage() {
   const { login, register, pendingAction, setActiveTab } = useSimulation();
 
   // 'public_login' | 'public_register' | 'driver_login'
-  const [authMode, setAuthMode] = useState(() =>
-    pendingAction === 'START_AMBULANCE' ? 'driver_login' : 'public_login'
-  );
+  const [authMode, setAuthMode] = useState(() => {
+    if (pendingAction === 'START_AMBULANCE') return 'driver_login';
+    if (typeof window !== 'undefined' && (window.location.hash.includes('register') || window.location.hash.includes('signup'))) {
+      return 'public_register';
+    }
+    return 'public_login';
+  });
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -38,6 +42,8 @@ export function LoginPage() {
   useEffect(() => {
     if (pendingAction === 'START_AMBULANCE') {
       setAuthMode('driver_login');
+    } else if (window.location.hash.includes('register') || window.location.hash.includes('signup')) {
+      setAuthMode('public_register');
     }
   }, [pendingAction]);
 
@@ -53,10 +59,6 @@ export function LoginPage() {
     setSuccessMsg('');
 
     if (authMode === 'public_register') {
-      if (!name.trim()) {
-        setErrorMsg('Please enter your full name.');
-        return;
-      }
       if (!email.trim() || !password) {
         setErrorMsg('Please enter both email address and password.');
         return;
@@ -68,7 +70,8 @@ export function LoginPage() {
 
       setIsSubmitting(true);
       try {
-        const result = await register(name.trim(), email.trim(), password);
+        const derivedName = name.trim() || email.trim().split('@')[0];
+        const result = await register(derivedName, email.trim(), password);
         if (!result.success) {
           setErrorMsg(result.error || 'Registration failed. Please try again.');
         }
@@ -88,7 +91,8 @@ export function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      const result = await login(email.trim(), password);
+      const isPublic = authMode === 'public_login';
+      const result = await login(email.trim(), password, { allowPublic: isPublic });
       if (!result.success) {
         setErrorMsg(result.error || 'Authentication failed. Please verify credentials.');
       }
@@ -270,6 +274,33 @@ export function LoginPage() {
                   ? 'Sign In to Driver Cockpit'
                   : 'Sign In to Public Network'}
               </Button>
+            </div>
+
+            <div className="login-mode-switch" style={{ marginTop: '1rem', textAlign: 'center', fontSize: '0.875rem' }}>
+              {authMode === 'public_login' && (
+                <p style={{ margin: 0 }}>
+                  Don't have an account yet?{' '}
+                  <button
+                    type="button"
+                    onClick={() => switchMode('public_register')}
+                    style={{ background: 'none', border: 'none', color: '#dc2626', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    Sign Up / Register Here
+                  </button>
+                </p>
+              )}
+              {authMode === 'public_register' && (
+                <p style={{ margin: 0 }}>
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => switchMode('public_login')}
+                    style={{ background: 'none', border: 'none', color: '#dc2626', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    Sign In to Existing Account
+                  </button>
+                </p>
+              )}
             </div>
           </form>
 

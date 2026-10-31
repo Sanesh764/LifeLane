@@ -29,22 +29,7 @@ router.post(
       );
     }
 
-    // Input validation
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      throw ApiError.badRequest(
-        'Full name is required (string between 2 and 100 characters).',
-        'INVALID_NAME'
-      );
-    }
-
-    const trimmedName = name.trim();
-    if (trimmedName.length < 2 || trimmedName.length > 100) {
-      throw ApiError.badRequest(
-        'Full name must be between 2 and 100 characters.',
-        'INVALID_NAME'
-      );
-    }
-
+    // Email validation
     if (!email || typeof email !== 'string' || !email.trim()) {
       throw ApiError.badRequest('Valid email address is required.', 'INVALID_EMAIL');
     }
@@ -53,6 +38,23 @@ router.post(
     const emailRegex = /^\S+@\S+\.\S+$/;
     if (!emailRegex.test(normalizedEmail)) {
       throw ApiError.badRequest('Please provide a valid email address format.', 'INVALID_EMAIL');
+    }
+
+    // Name validation & automatic derivation if omitted
+    let finalName = '';
+    if (name && typeof name === 'string' && name.trim()) {
+      finalName = name.trim();
+      if (finalName.length < 2 || finalName.length > 100) {
+        throw ApiError.badRequest(
+          'Full name must be between 2 and 100 characters.',
+          'INVALID_NAME'
+        );
+      }
+    } else {
+      const emailPrefix = normalizedEmail.split('@')[0].replace(/[._-]+/g, ' ').trim();
+      finalName = emailPrefix
+        ? emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1)
+        : 'Citizen User';
     }
 
     if (!password || typeof password !== 'string' || password.length < 8) {
@@ -76,7 +78,7 @@ router.post(
 
     // Strictly enforce role: PUBLIC_USER (never allow role escalation to AMBULANCE_DRIVER or ADMIN)
     const newUser = new User({
-      name: trimmedName,
+      name: finalName,
       email: normalizedEmail,
       passwordHash,
       role: 'PUBLIC_USER',

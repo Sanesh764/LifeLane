@@ -55,8 +55,8 @@ function AppContent() {
         }
       } else if (mainTab === 'public' || mainTab === 'dashboard') {
         setActiveTab('public');
-      } else if (['overview', 'alerts', 'report', 'login'].includes(mainTab)) {
-        setActiveTab(mainTab);
+      } else if (['overview', 'alerts', 'report', 'login', 'register', 'signup'].includes(mainTab)) {
+        setActiveTab(mainTab === 'register' || mainTab === 'signup' ? 'login' : mainTab);
       }
     }
 

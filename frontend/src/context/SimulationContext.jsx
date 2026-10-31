@@ -752,8 +752,8 @@ export function SimulationProvider({ children }) {
   }, [addToast, setActiveTab]);
 
   // Handle Driver & Public User Login via Real Backend
-  const login = useCallback(async (email, password) => {
-    const result = await authService.login(email, password);
+  const login = useCallback(async (email, password, options = {}) => {
+    const result = await authService.login(email, password, options);
     if (result.success) {
       setCurrentUser(result.user);
       const isDriver = result.user.isDriver || result.user.role === 'AMBULANCE_DRIVER';

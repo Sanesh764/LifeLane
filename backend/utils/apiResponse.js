@@ -56,10 +56,24 @@ class ApiResponse {
   }
 
   toJSON() {
+    const spreadData =
+      this.data && typeof this.data === 'object' && !Array.isArray(this.data)
+        ? { ...this.data }
+        : null;
+
+    if (spreadData) {
+      delete spreadData.success;
+      delete spreadData.statusCode;
+      delete spreadData.message;
+      delete spreadData.data;
+      delete spreadData.meta;
+    }
+
     const payload = {
       success: this.success,
       statusCode: this.statusCode,
       message: this.message,
+      ...(spreadData || {}),
       data: this.data,
     };
 
