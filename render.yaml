@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: amburoute-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: CORS_ORIGIN
+        value: https://main.d37a0y0p7v19sh.amplifyapp.com
+      - key: EMERGENCY_NOTIFICATION_MODE
+        value: GLOBAL
+      - key: NOTIFICATION_DEMO_BROADCAST_ALL
+        value: "true"
+      - key: VAPID_SUBJECT
+        value: mailto:emergency-ops@amburoute.org
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: COMET_API_KEY
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: INITIAL_DRIVER_EMAIL
+        value: driver@amburoute.demo
+      - key: INITIAL_DRIVER_PASSWORD
+        sync: false

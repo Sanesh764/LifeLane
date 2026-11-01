@@ -205,6 +205,39 @@ export const pushService = {
         console.warn('[pushService] getSubscription notice:', getErr);
       }
 
+      // If an existing subscription exists, verify if its key matches the current backend VAPID key
+      // If mismatched or stale, unsubscribe and re-subscribe cleanly with the fresh key
+      if (subscription) {
+        let isKeyMismatch = false;
+        try {
+          if (subscription.options && subscription.options.applicationServerKey) {
+            const existingKeyArray = new Uint8Array(subscription.options.applicationServerKey);
+            if (existingKeyArray.length !== applicationServerKey.length) {
+              isKeyMismatch = true;
+            } else {
+              for (let i = 0; i < existingKeyArray.length; i++) {
+                if (existingKeyArray[i] !== applicationServerKey[i]) {
+                  isKeyMismatch = true;
+                  break;
+                }
+              }
+            }
+          }
+        } catch (cmpErr) {
+          console.warn('[pushService] Key comparison notice:', cmpErr);
+        }
+
+        if (isKeyMismatch) {
+          console.log('[pushService] Stale or mismatched VAPID key on subscription. Re-subscribing with fresh key...');
+          try {
+            await subscription.unsubscribe();
+            subscription = null;
+          } catch (unsubErr) {
+            console.warn('[pushService] Could not unsubscribe stale subscription:', unsubErr);
+          }
+        }
+      }
+
       if (!subscription) {
         subscription = await reg.pushManager.subscribe({
           userVisibleOnly: true,

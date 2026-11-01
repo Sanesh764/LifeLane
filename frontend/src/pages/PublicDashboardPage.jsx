@@ -108,8 +108,15 @@ export function PublicDashboardPage() {
   }, []);
 
   useEffect(() => {
-    setBrowserPermission(pushService.getPermission());
-    refreshSubscriptions();
+    const perm = pushService.getPermission();
+    setBrowserPermission(perm);
+    if (perm === 'granted') {
+      pushService.syncSubscription().then(() => {
+        refreshSubscriptions();
+      });
+    } else {
+      refreshSubscriptions();
+    }
   }, [refreshSubscriptions]);
 
   // Update road segment input when user location changes

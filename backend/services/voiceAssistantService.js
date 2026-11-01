@@ -1,7 +1,43 @@
+import { spawn } from 'child_process';
 import { env } from '../config/env.js';
 import { AmbulanceTrip } from '../models/AmbulanceTrip.js';
 import { getRelevantClustersForLocation } from './trafficClusteringService.js';
 import { calculateDistanceMeters } from './notificationService.js';
+
+/**
+ * Safely converts any audio buffer (WebM, OGG, MP4, etc.) to 16kHz mono WAV using ffmpeg.
+ * Resolves with the WAV buffer on success, or rejects if ffmpeg is unavailable / fails.
+ */
+function convertAudioToWav(inputBuffer) {
+  return new Promise((resolve, reject) => {
+    try {
+      const ff = spawn('ffmpeg', [
+        '-loglevel', 'error',
+        '-i', 'pipe:0',
+        '-ar', '16000',
+        '-ac', '1',
+        '-f', 'wav',
+        'pipe:1',
+      ]);
+
+      const chunks = [];
+      ff.stdout.on('data', (chunk) => chunks.push(chunk));
+      ff.on('error', (err) => reject(err));
+      ff.on('close', (code) => {
+        if (code === 0 && chunks.length > 0) {
+          resolve(Buffer.concat(chunks));
+        } else {
+          reject(new Error(`ffmpeg conversion failed with exit code ${code}`));
+        }
+      });
+
+      ff.stdin.on('error', () => {}); // avoid unhandled EPIPE if ffmpeg exits early
+      ff.stdin.end(inputBuffer);
+    } catch (spawnErr) {
+      reject(spawnErr);
+    }
+  });
+}
 
 /**
  * Supported driver intent types
@@ -47,22 +83,63 @@ class VoiceAssistantService {
 
     const startTime = Date.now();
 
+    // 1. Determine if incoming buffer is already standard PCM WAV (starts with 'RIFF' and 'WAVE')
+    const isAlreadyWav =
+      audioBuffer.length >= 12 &&
+      audioBuffer.slice(0, 4).toString('ascii') === 'RIFF' &&
+      audioBuffer.slice(8, 12).toString('ascii') === 'WAVE';
+
+    let finalBuffer = audioBuffer;
+    let finalMime = 'audio/wav';
+    let fileExtension = 'wav';
+
+    if (isAlreadyWav) {
+      finalBuffer = audioBuffer;
+      finalMime = 'audio/wav';
+      fileExtension = 'wav';
+    } else {
+      // 2. Transcode WebM/OGG/MP4 to 16kHz mono WAV via ffmpeg for bulletproof Whisper ingestion
+      try {
+        finalBuffer = await convertAudioToWav(audioBuffer);
+        finalMime = 'audio/wav';
+        fileExtension = 'wav';
+      } catch (convErr) {
+        console.warn('[VoiceAssistant] ffmpeg transcode notice:', convErr.message, '- falling back to direct container.');
+        // Fallback: Strip parameter headers (e.g. ';codecs=opus') to prevent Groq multipart rejection
+        const rawMime = (mimeType || 'audio/webm').split(';')[0].trim().toLowerCase();
+        finalMime = rawMime;
+        fileExtension = rawMime.includes('wav')
+          ? 'wav'
+          : rawMime.includes('mp3')
+          ? 'mp3'
+          : rawMime.includes('ogg')
+          ? 'ogg'
+          : rawMime.includes('mp4') || rawMime.includes('m4a')
+          ? 'm4a'
+          : 'webm';
+      }
+    }
+
     // Prepare multipart form data using Node.js native FormData and Blob
     const formData = new FormData();
-    const extension = mimeType.includes('wav') ? 'wav' : mimeType.includes('mp3') ? 'mp3' : 'webm';
-    const blob = new Blob([audioBuffer], { type: mimeType });
-    formData.append('file', blob, `driver_audio.${extension}`);
+    const blob = new Blob([finalBuffer], { type: finalMime });
+    formData.append('file', blob, `driver_audio.${fileExtension}`);
     formData.append('model', this.whisperModel);
     formData.append('language', 'en');
     formData.append('temperature', '0');
 
-    const response = await fetch(`${this.baseUrl}/audio/transcriptions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: formData,
-    });
+    let response;
+    try {
+      response = await fetch(`${this.baseUrl}/audio/transcriptions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: formData,
+      });
+    } catch (netErr) {
+      throw new Error(`Whisper connection failed: ${netErr.message}`);
+    }
 
     const elapsed = Date.now() - startTime;
 

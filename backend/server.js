@@ -16,9 +16,41 @@ import { notFoundHandler, errorHandler } from './middlewares/errorHandler.js';
 
 export const app = express();
 
-// CORS configuration conforming to docs/SECURITY.md
+// Trust reverse proxy (Render, AWS Amplify proxy, Cloudflare) for accurate client IP detection & rate limiting
+app.set('trust proxy', 1);
+
+// Production & Development CORS Configuration
+const allowedOrigins = new Set([
+  'https://main.d37a0y0p7v19sh.amplifyapp.com',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+]);
+
+// Include any additional comma-separated origins from CORS_ORIGIN environment variable
+if (env.CORS_ORIGIN && env.CORS_ORIGIN !== '*') {
+  env.CORS_ORIGIN.split(',').forEach((orig) => {
+    const trimmed = orig.trim();
+    if (trimmed) allowedOrigins.add(trimmed);
+  });
+}
+
+// CORS middleware conforming to docs/SECURITY.md
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', env.CORS_ORIGIN || '*');
+  const origin = req.headers.origin;
+
+  if (origin) {
+    if (allowedOrigins.has(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Vary', 'Origin');
+    } else if (!env.IS_PRODUCTION && (env.CORS_ORIGIN === '*' || !env.CORS_ORIGIN)) {
+      // Allow in development/test if wildcard explicitly allowed
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Vary', 'Origin');
+    }
+  }
+
   const reqHeaders = req.header('Access-Control-Request-Headers');
   res.header(
     'Access-Control-Allow-Headers',
@@ -26,19 +58,24 @@ app.use((req, res, next) => {
       'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Endpoint-Hash, x-endpoint-hash'
   );
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Max-Age', '86400');
+
   if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
+    return res.sendStatus(204);
   }
   next();
 });
 
 app.use(express.json({ limit: '10mb' }));
 
-// Health check endpoints (Database-independent)
+// Health check endpoints (Lightweight, database status and uptime aware)
 const handleHealth = (req, res) => {
+  const dbReady = isDbConnected();
   res.status(200).json({
     status: 'ok',
     service: 'amburoute-backend',
+    uptime: Math.floor(process.uptime()),
+    database: dbReady ? 'connected' : 'connecting',
     timestamp: new Date().toISOString(),
   });
 };
@@ -88,8 +125,8 @@ let serverInstance = null;
 
 export const startServer = async (port = env.PORT) => {
   const listenPromise = new Promise((resolve) => {
-    serverInstance = app.listen(port, () => {
-      console.log(`[AmbuRoute Backend] Server listening on port ${port}`);
+    serverInstance = app.listen(port, '0.0.0.0', () => {
+      console.log(`[AmbuRoute Backend] Server listening on 0.0.0.0:${port}`);
       resolve(serverInstance);
     });
   });

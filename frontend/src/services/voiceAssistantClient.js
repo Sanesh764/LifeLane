@@ -2,11 +2,68 @@ import { voiceService } from './voiceService.js';
 import { API_BASE_URL } from './api.js';
 import { authService } from './authService.js';
 
+/**
+ * Encodes an array of Float32Array PCM audio chunks into standard 16-bit Mono WAV Blob.
+ * Supported natively by Groq Whisper, OpenAI Whisper, and all browsers.
+ */
+function encodeWavBlob(samples, sampleRate = 16000) {
+  let totalLength = 0;
+  for (let i = 0; i < samples.length; i++) {
+    totalLength += samples[i].length;
+  }
+
+  const buffer = new ArrayBuffer(44 + totalLength * 2);
+  const view = new DataView(buffer);
+
+  function writeString(offset, string) {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  }
+
+  // RIFF container header
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + totalLength * 2, true);
+  writeString(8, 'WAVE');
+
+  // fmt subchunk
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+  view.setUint16(20, 1, true); // AudioFormat (1 = PCM)
+  view.setUint16(22, 1, true); // NumChannels (1 = Mono)
+  view.setUint32(24, sampleRate, true); // SampleRate
+  view.setUint32(28, sampleRate * 2, true); // ByteRate (SampleRate * 1 * 16/8)
+  view.setUint16(32, 2, true); // BlockAlign (1 * 16/8)
+  view.setUint16(34, 16, true); // BitsPerSample (16 bits)
+
+  // data subchunk
+  writeString(36, 'data');
+  view.setUint32(40, totalLength * 2, true);
+
+  // Write PCM audio samples (clamp and quantize to 16-bit signed integer)
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const chunk = samples[i];
+    for (let j = 0; j < chunk.length; j++) {
+      const s = Math.max(-1, Math.min(1, chunk[j]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      offset += 2;
+    }
+  }
+
+  return new Blob([view], { type: 'audio/wav' });
+}
+
 class VoiceAssistantClient {
   constructor() {
     this.mediaRecorder = null;
     this.audioChunks = [];
     this.mediaStream = null;
+    this.audioContext = null;
+    this.audioSource = null;
+    this.audioProcessor = null;
+    this.pcmChunks = [];
+    this.recordingMethod = null; // 'WEBAUDIO_WAV' | 'MEDIARECORDER'
     this.isRecording = false;
     this.currentAudioElement = null;
   }
@@ -16,12 +73,15 @@ class VoiceAssistantClient {
       typeof window !== 'undefined' &&
       navigator.mediaDevices &&
       typeof navigator.mediaDevices.getUserMedia === 'function' &&
-      typeof window.MediaRecorder !== 'undefined'
+      (typeof window.AudioContext !== 'undefined' ||
+        typeof window.webkitAudioContext !== 'undefined' ||
+        typeof window.MediaRecorder !== 'undefined')
     );
   }
 
   /**
-   * Start recording driver audio from microphone
+   * Start recording driver audio from microphone.
+   * Prefers Web Audio API to produce standard 16kHz mono WAV for zero-transcoding Whisper compatibility.
    */
   async startRecording() {
     if (!this.isSupported()) {
@@ -41,21 +101,48 @@ class VoiceAssistantClient {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
+          channelCount: 1,
         },
       });
 
-      this.audioChunks = [];
+      // 1. Try Web Audio API (Pristine 16kHz mono PCM WAV)
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        try {
+          this.audioContext = new AudioCtx({ sampleRate: 16000 });
+          this.audioSource = this.audioContext.createMediaStreamSource(this.mediaStream);
+          this.audioProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
+          this.pcmChunks = [];
 
-      // Determine best supported mimeType
+          this.audioProcessor.onaudioprocess = (e) => {
+            if (!this.isRecording) return;
+            const inputChannel = e.inputBuffer.getChannelData(0);
+            this.pcmChunks.push(new Float32Array(inputChannel));
+          };
+
+          this.audioSource.connect(this.audioProcessor);
+          this.audioProcessor.connect(this.audioContext.destination);
+
+          this.recordingMethod = 'WEBAUDIO_WAV';
+          this.isRecording = true;
+          return;
+        } catch (ctxErr) {
+          console.warn('[VoiceAssistantClient] AudioContext fallback to MediaRecorder:', ctxErr.message);
+          this.cleanupAudioContext();
+        }
+      }
+
+      // 2. Fallback: MediaRecorder without timeslice chunking (to produce a single, valid container header)
+      this.audioChunks = [];
       const mimeTypes = [
-        'audio/webm;codecs=opus',
         'audio/webm',
+        'audio/webm;codecs=opus',
         'audio/ogg;codecs=opus',
         'audio/mp4',
       ];
       let selectedMimeType = '';
       for (const mime of mimeTypes) {
-        if (MediaRecorder.isTypeSupported(mime)) {
+        if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mime)) {
           selectedMimeType = mime;
           break;
         }
@@ -70,9 +157,11 @@ class VoiceAssistantClient {
         }
       };
 
-      this.mediaRecorder.start(250); // Slice chunks every 250ms
+      this.mediaRecorder.start(); // Do NOT slice with timeslice
+      this.recordingMethod = 'MEDIARECORDER';
       this.isRecording = true;
     } catch (err) {
+      this.cleanupAudioContext();
       this.cleanupStream();
       throw err;
     }
@@ -82,40 +171,83 @@ class VoiceAssistantClient {
    * Stop recording and return audio Blob and mimeType
    */
   async stopRecording() {
-    if (!this.isRecording || !this.mediaRecorder) {
+    if (!this.isRecording) {
       return null;
     }
 
-    return new Promise((resolve) => {
-      this.mediaRecorder.onstop = async () => {
-        const mimeType = this.mediaRecorder.mimeType || 'audio/webm';
-        const blob = new Blob(this.audioChunks, { type: mimeType });
-        this.cleanupStream();
-        this.isRecording = false;
-        resolve({ blob, mimeType });
-      };
+    // Handle Web Audio API recording
+    if (this.recordingMethod === 'WEBAUDIO_WAV' && this.audioContext) {
+      this.isRecording = false;
+      const actualSampleRate = this.audioContext.sampleRate || 16000;
+      const blob = encodeWavBlob(this.pcmChunks || [], actualSampleRate);
+      this.cleanupAudioContext();
+      this.cleanupStream();
+      return { blob, mimeType: 'audio/wav' };
+    }
 
-      try {
-        this.mediaRecorder.stop();
-      } catch (err) {
-        this.cleanupStream();
-        this.isRecording = false;
-        resolve(null);
-      }
-    });
+    // Handle MediaRecorder recording
+    if (this.mediaRecorder) {
+      return new Promise((resolve) => {
+        this.mediaRecorder.onstop = () => {
+          const rawMime = this.mediaRecorder.mimeType || 'audio/webm';
+          // Clean mimeType: strip ;codecs=... parameter for API stability
+          const cleanMime = rawMime.split(';')[0].trim();
+          const blob = new Blob(this.audioChunks, { type: cleanMime });
+          this.cleanupStream();
+          this.isRecording = false;
+          resolve({ blob, mimeType: cleanMime });
+        };
+
+        try {
+          this.mediaRecorder.stop();
+        } catch {
+          this.cleanupStream();
+          this.isRecording = false;
+          resolve(null);
+        }
+      });
+    }
+
+    this.cleanupAudioContext();
+    this.cleanupStream();
+    this.isRecording = false;
+    return null;
   }
 
   cancelRecording() {
-    if (this.mediaRecorder && this.isRecording) {
+    this.isRecording = false;
+    if (this.mediaRecorder) {
       try {
         this.mediaRecorder.stop();
       } catch {
         // ignore
       }
     }
+    this.cleanupAudioContext();
     this.cleanupStream();
-    this.isRecording = false;
     this.audioChunks = [];
+    this.pcmChunks = [];
+  }
+
+  cleanupAudioContext() {
+    if (this.audioProcessor) {
+      try {
+        this.audioProcessor.disconnect();
+      } catch {}
+      this.audioProcessor = null;
+    }
+    if (this.audioSource) {
+      try {
+        this.audioSource.disconnect();
+      } catch {}
+      this.audioSource = null;
+    }
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      try {
+        this.audioContext.close();
+      } catch {}
+      this.audioContext = null;
+    }
   }
 
   cleanupStream() {

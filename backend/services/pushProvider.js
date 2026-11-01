@@ -34,21 +34,28 @@ export class WebPushProvider {
 
     // RFC 8030 Section 5.4: Topic MUST be max 32 characters and base64url safe
     let safeTopic = options.topic;
-    if (typeof safeTopic === 'string') {
+    if (typeof safeTopic === 'string' && safeTopic.trim()) {
       safeTopic = safeTopic.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 32);
+    } else {
+      safeTopic = undefined;
     }
 
     try {
+      const requestOptions = {
+        TTL: options.TTL || env.ALERTS?.pushTtlSeconds || 1800,
+        urgency: options.urgency || 'high',
+        ...options,
+      };
+      if (safeTopic) {
+        requestOptions.topic = safeTopic;
+      } else {
+        delete requestOptions.topic;
+      }
+
       const response = await webpush.sendNotification(
         pushSubscription,
         payloadString,
-        {
-          TTL: options.TTL || env.ALERTS?.pushTtlSeconds || 1800,
-          urgency: options.urgency || 'high',
-          ...(safeTopic ? { topic: safeTopic } : {}),
-          ...options,
-          ...(safeTopic ? { topic: safeTopic } : {}),
-        }
+        requestOptions
       );
 
       return {

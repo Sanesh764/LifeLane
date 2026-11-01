@@ -86,15 +86,15 @@ describe('Phase B4: Emergency Alert & Web Push Notification Engine', () => {
 
   beforeEach(async () => {
     mockPush.clear();
-    await PushSubscription.deleteMany({});
-    await AlertDispatch.deleteMany({});
+    await PushSubscription.deleteMany({ endpoint: { $regex: /test|mock|example/i } });
+    await AlertDispatch.deleteMany({ endpointHash: { $regex: /test|mock/i } });
     await AmbulanceTrip.deleteMany({ driverId: testDriver._id });
   });
 
   after(async () => {
     stopAllTripAlertIntervals();
-    await PushSubscription.deleteMany({});
-    await AlertDispatch.deleteMany({});
+    await PushSubscription.deleteMany({ endpoint: { $regex: /test|mock|example/i } });
+    await AlertDispatch.deleteMany({ endpointHash: { $regex: /test|mock/i } });
     await AmbulanceTrip.deleteMany({ driverId: testDriver._id });
     await User.deleteMany({ email: 'b4_driver@amburoute.test' });
     if (server) {

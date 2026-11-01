@@ -159,6 +159,34 @@ describe('Part 2: AI Voice Assistant and Driver Route Assistance', () => {
       assert.ok(result.durationMs > 0);
     });
 
+    it('safely handles non-WAV / WebM audio transcoding without crashing', async () => {
+      const sampleRate = 16000;
+      const numChannels = 1;
+      const bitsPerSample = 16;
+      const blockAlign = (numChannels * bitsPerSample) / 8;
+      const byteRate = sampleRate * blockAlign;
+      const dataSize = 16000;
+      const wav = Buffer.alloc(44 + dataSize);
+      wav.write('RIFF', 0);
+      wav.writeUInt32LE(36 + dataSize, 4);
+      wav.write('WAVE', 8);
+      wav.write('fmt ', 12);
+      wav.writeUInt32LE(16, 16);
+      wav.writeUInt16LE(1, 20);
+      wav.writeUInt16LE(numChannels, 22);
+      wav.writeUInt32LE(sampleRate, 24);
+      wav.writeUInt32LE(byteRate, 28);
+      wav.writeUInt16LE(blockAlign, 32);
+      wav.writeUInt16LE(bitsPerSample, 34);
+      wav.write('data', 36);
+      wav.writeUInt32LE(dataSize, 40);
+
+      // Even when labeled as 'audio/webm;codecs=opus', transcribeAudio normalizes and transcribes cleanly
+      const result = await voiceAssistantService.transcribeAudio(wav, 'audio/webm;codecs=opus');
+      assert.ok(typeof result.text === 'string');
+      assert.ok(result.durationMs > 0);
+    });
+
     it('returns null on empty text for synthesizeSpeech', async () => {
       const result = await voiceAssistantService.synthesizeSpeech('');
       assert.equal(result, null);

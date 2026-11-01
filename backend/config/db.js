@@ -22,15 +22,19 @@ export const connectDB = async () => {
     console.log(`MongoDB  database connected successfully:`);
     return conn;
   } catch (primaryError) {
-    console.warn(`[MongoDB Warning] Primary SRV connection failed (${primaryError.message}). Attempting direct replica set fallback...`);
-    try {
-      const fallbackConn = await mongoose.connect(DIRECT_FALLBACK_URI, connectionOptions);
-      console.log(`secondary monodb databse connected`);
-      return fallbackConn;
-    } catch (fallbackError) {
-      console.error(`[MongoDB Error] Fallback connection also failed: ${fallbackError.message}`);
-      return null;
+    console.warn(`[MongoDB Warning] Primary connection error (${primaryError.message}).`);
+    if (DIRECT_FALLBACK_URI) {
+      console.log('[MongoDB Notice] Attempting secondary fallback MongoDB connection...');
+      try {
+        const fallbackConn = await mongoose.connect(DIRECT_FALLBACK_URI, connectionOptions);
+        console.log('[MongoDB Notice] Secondary MongoDB database connected successfully.');
+        return fallbackConn;
+      } catch (fallbackError) {
+        console.error(`[MongoDB Error] Fallback connection also failed: ${fallbackError.message}`);
+        return null;
+      }
     }
+    return null;
   }
 };
 

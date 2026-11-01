@@ -71,14 +71,14 @@ describe('Web Push Verification & Multi-Device Dispatch Testing', () => {
 
   beforeEach(async () => {
     mockPush.clear();
-    await PushSubscription.deleteMany({});
-    await AlertDispatch.deleteMany({});
+    await PushSubscription.deleteMany({ endpoint: { $regex: /test|mock|example/i } });
+    await AlertDispatch.deleteMany({ endpointHash: { $regex: /test|mock/i } });
     await AmbulanceTrip.deleteMany({ driverId: testDriver._id });
   });
 
   after(async () => {
-    await PushSubscription.deleteMany({});
-    await AlertDispatch.deleteMany({});
+    await PushSubscription.deleteMany({ endpoint: { $regex: /test|mock|example/i } });
+    await AlertDispatch.deleteMany({ endpointHash: { $regex: /test|mock/i } });
     await AmbulanceTrip.deleteMany({ driverId: testDriver._id });
     await User.deleteMany({ email: 'webpush_test_driver@amburoute.test' });
     if (server) {
