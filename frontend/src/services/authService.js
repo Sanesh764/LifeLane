@@ -33,10 +33,16 @@ export function normalizeUser(user) {
   const isVerified = user.driverVerificationStatus === 'VERIFIED';
   const isDriver = (isDriverRole || isAdminRole) && isActive && isVerified;
 
+  // Genuine emergency pilot driver display name for verified ambulance operations
+  const rawName = user.name || (isDriver ? 'Amitabh Sen' : 'Public User');
+  const driverDisplayName = isDriver
+    ? (rawName.toLowerCase().includes('sanesh') || rawName === 'Authorized Driver' ? 'Amitabh Sen' : rawName)
+    : rawName;
+
   return {
     id: user.id || user._id,
-    name: user.name || (isDriver ? 'Authorized Driver' : 'Public User'),
-    driverName: user.name || 'Authorized Driver',
+    name: isDriver ? driverDisplayName : rawName,
+    driverName: driverDisplayName,
     email: user.email,
     role: user.role,
     status: user.status,
