@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { app } from '../server.js';
 import { connectDB, disconnectDB } from '../config/db.js';
 import { env } from '../config/env.js';
+import { clearRevocationsForTesting } from '../middlewares/auth.js';
 
 describe('Phase B2: Real End-to-End Driver Auth Integration', () => {
   let server;
@@ -21,6 +22,7 @@ describe('Phase B2: Real End-to-End Driver Auth Integration', () => {
   });
 
   after(async () => {
+    clearRevocationsForTesting();
     if (server) {
       await new Promise((resolve) => server.close(resolve));
     }

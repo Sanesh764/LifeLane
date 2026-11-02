@@ -338,7 +338,14 @@ export function SimulationProvider({ children }) {
           }
         } else if (res.success && !res.data?.active) {
           // If no active mission is running on the backend
-          setTripStatus((prev) => (prev === 'ACTIVE' ? 'IDLE' : prev));
+          setActiveTrip(null);
+          setTripStatus((prev) => {
+            if (prev === 'ACTIVE') {
+              setCurrentRoute(INITIAL_ROUTE);
+              return 'IDLE';
+            }
+            return prev;
+          });
         }
       } catch (err) {
         // Silently skip if network or server is temporarily offline
@@ -578,6 +585,44 @@ export function SimulationProvider({ children }) {
               setActiveTrip(backendTrip);
               startDriverLocationWatcher(backendTrip.id || backendTrip._id);
             }
+          } else if (
+            createRes.error?.code === 'TOKEN_REVOKED' ||
+            createRes.error?.code === 'TOKEN_EXPIRED' ||
+            createRes.status === 401
+          ) {
+            console.warn('[SimulationContext] Driver session revoked/expired during trip creation:', createRes.error);
+
+            // Cleanly clear revoked/expired session
+            authService.clearSession();
+            setCurrentUser(null);
+            setTripStatus('IDLE');
+            setActiveTrip(null);
+            setCurrentRoute(INITIAL_ROUTE);
+            setPendingAction('START_AMBULANCE');
+            addToast(
+              'Driver Session Expired',
+              'Your driver session has expired or was logged out. Please sign in again to dispatch an emergency mission.',
+              'critical'
+            );
+            setActiveTab('login');
+            window.location.hash = 'login';
+            return false;
+          } else if (createRes.status === 403) {
+            console.warn('[SimulationContext] Trip creation forbidden:', createRes.error);
+            addToast(
+              'Dispatch Denied',
+              createRes.error?.message || 'Driver account is not verified or lacks permission to dispatch.',
+              'critical'
+            );
+            return false;
+          } else if (createRes.status === 400) {
+            console.warn('[SimulationContext] Invalid trip parameters:', createRes.error);
+            addToast(
+              'Invalid Trip Parameters',
+              createRes.error?.message || 'Invalid origin or destination coordinates.',
+              'warning'
+            );
+            return false;
           } else {
             console.warn('[SimulationContext] Backend trip creation note:', createRes.error);
             addToast(
@@ -787,6 +832,43 @@ export function SimulationProvider({ children }) {
     }
     return { success: false, error: result.error };
   }, [pendingAction, addToast, setActiveTab, setDriverSubTab]);
+
+  // Handle Google OAuth URL Request
+  const getGoogleAuthUrl = useCallback(async (redirectUrl) => {
+    return authService.getGoogleAuthUrl(redirectUrl);
+  }, []);
+
+  // Handle Google OAuth Ticket Exchange
+  const exchangeOAuthTicket = useCallback(async (ticket) => {
+    const result = await authService.exchangeGoogleTicket(ticket);
+    if (result.success && result.user) {
+      // Security rule: Google auth is strictly restricted to PUBLIC_USER accounts
+      if (result.user.role === 'AMBULANCE_DRIVER' || result.user.role === 'ADMIN') {
+        authService.clearSession();
+        setCurrentUser(null);
+        addToast(
+          'Access Denied',
+          'Google authentication is restricted to public citizen accounts only.',
+          'critical'
+        );
+        return {
+          success: false,
+          error: 'Google authentication is restricted to public citizen accounts only.',
+        };
+      }
+
+      setCurrentUser(result.user);
+      addToast(
+        'Welcome to AmbuRoute',
+        `Signed in with Google as ${result.user.name}. Public dashboard active.`,
+        'success'
+      );
+      setActiveTab('public');
+      window.location.hash = 'public';
+      return { success: true, user: result.user };
+    }
+    return { success: false, error: result.error || 'Failed to exchange Google OAuth ticket.' };
+  }, [addToast, setActiveTab]);
 
   // Handle Driver Logout via Real Backend
   const logout = useCallback(async () => {
@@ -1094,6 +1176,8 @@ export function SimulationProvider({ children }) {
     register,
     login,
     logout,
+    getGoogleAuthUrl,
+    exchangeOAuthTicket,
     // Driver & Trip
     activeTrip,
     isTestModeLocation,

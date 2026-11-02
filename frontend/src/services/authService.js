@@ -439,4 +439,135 @@ export const authService = {
     this.clearSession();
     return { success: true };
   },
+
+  /**
+   * Request Google OAuth consent URL from backend
+   * GET /api/v1/auth/google/url
+   */
+  async getGoogleAuthUrl(redirectUrl = null) {
+    try {
+      const targetUrl = redirectUrl || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173');
+      const response = await fetch(
+        `${API_BASE_URL}/auth/google/url?redirectUrl=${encodeURIComponent(targetUrl)}`,
+        {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+          },
+          credentials: 'include',
+        }
+      );
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        // Non-JSON response
+      }
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data?.error?.message || `Failed to generate Google Sign-In URL (HTTP ${response.status}).`,
+          code: data?.error?.code || 'GOOGLE_URL_FAILED',
+        };
+      }
+
+      const url = data?.data?.url;
+      if (!url) {
+        return {
+          success: false,
+          error: 'No authorization URL returned from Google OAuth server.',
+        };
+      }
+
+      return {
+        success: true,
+        url,
+      };
+    } catch (networkErr) {
+      console.error('[authService] Network error requesting Google OAuth URL:', networkErr);
+      return {
+        success: false,
+        error: 'Unable to connect to Google OAuth server. Please verify backend is running.',
+      };
+    }
+  },
+
+  /**
+   * Atomically exchange short-lived single-use OAuth ticket for session credentials
+   * POST /api/v1/auth/google/exchange
+   */
+  async exchangeGoogleTicket(ticket) {
+    if (!ticket || typeof ticket !== 'string' || !ticket.trim()) {
+      return {
+        success: false,
+        error: 'Invalid or missing Google OAuth ticket.',
+        code: 'MISSING_TICKET',
+      };
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/google/exchange`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ ticket: ticket.trim() }),
+      });
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        // Non-JSON response
+      }
+
+      if (!response.ok) {
+        const errorMsg = data?.error?.message || `OAuth ticket exchange failed with status ${response.status}.`;
+        const errorCode = data?.error?.code || 'TICKET_EXCHANGE_FAILED';
+        return {
+          success: false,
+          error: errorMsg,
+          code: errorCode,
+        };
+      }
+
+      const payload = data?.data;
+      if (!payload || !payload.accessToken || !payload.user) {
+        return {
+          success: false,
+          error: 'Malformed session data received from authentication server.',
+        };
+      }
+
+      // Security verification: Google auth is strictly restricted to PUBLIC_USER accounts
+      const userRole = payload.user.role;
+      if (userRole === 'AMBULANCE_DRIVER' || userRole === 'ADMIN') {
+        this.clearSession();
+        return {
+          success: false,
+          error: 'Access denied: Ambulance driver and administrative accounts must use the Driver Cockpit portal with verified credentials.',
+          code: 'GOOGLE_AUTH_ROLE_RESTRICTED',
+        };
+      }
+
+      const normalized = normalizeUser(payload.user);
+      this.setSession(payload.accessToken, normalized);
+
+      return {
+        success: true,
+        user: normalized,
+        token: payload.accessToken,
+      };
+    } catch (networkErr) {
+      console.error('[authService] Network error during OAuth ticket exchange:', networkErr);
+      return {
+        success: false,
+        error: 'Network connection failed while completing Google sign-in.',
+      };
+    }
+  },
 };

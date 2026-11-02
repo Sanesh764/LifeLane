@@ -12,13 +12,14 @@ export function EmergencyBanner() {
   const {
     tripStatus,
     activeTrip,
+    currentRoute,
     setActiveTab,
     setDriverSubTab,
     isDriverAuthenticated,
   } = useSimulation();
 
   const [isDismissed, setIsDismissed] = useState(false);
-  const isTripActive = tripStatus === 'ACTIVE' || activeTrip?.status === 'ACTIVE';
+  const isTripActive = tripStatus === 'ACTIVE' && (activeTrip !== null || currentRoute !== null);
 
   if (!isTripActive || isDismissed) {
     return null;

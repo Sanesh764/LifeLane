@@ -318,4 +318,30 @@ export const apiClient = {
       return null;
     }
   },
+
+  // --- Google OAuth Endpoints ---
+
+  /**
+   * Request Google OAuth authorization consent URL
+   * GET /api/v1/auth/google/url
+   */
+  async getGoogleAuthUrl(redirectUrl = null) {
+    const targetUrl = redirectUrl || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173');
+    return request(`/auth/google/url?redirectUrl=${encodeURIComponent(targetUrl)}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+  },
+
+  /**
+   * Atomically exchange short-lived single-use ticket for session credentials
+   * POST /api/v1/auth/google/exchange
+   */
+  async exchangeGoogleTicket(ticket) {
+    return request('/auth/google/exchange', {
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ ticket: (ticket || '').trim() }),
+    });
+  },
 };

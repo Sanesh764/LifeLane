@@ -43,25 +43,26 @@ app.use((req, res, next) => {
   if (origin) {
     if (allowedOrigins.has(origin)) {
       res.header('Access-Control-Allow-Origin', origin);
-      res.header('Vary', 'Origin');
-    } else if (!env.IS_PRODUCTION && (env.CORS_ORIGIN === '*' || !env.CORS_ORIGIN)) {
-      // Allow in development/test if wildcard explicitly allowed
-      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
       res.header('Vary', 'Origin');
     }
+    // If origin is not in allowedOrigins, Access-Control-Allow-Origin is omitted (browser blocks)
+  } else if (!env.IS_PRODUCTION) {
+    // For non-browser / direct API clients without Origin header in dev
+    res.header('Access-Control-Allow-Origin', '*');
   }
 
   const reqHeaders = req.header('Access-Control-Request-Headers');
   res.header(
     'Access-Control-Allow-Headers',
     reqHeaders ||
-      'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Endpoint-Hash, x-endpoint-hash'
+      'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cookie, X-Endpoint-Hash, x-endpoint-hash'
   );
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Max-Age', '86400');
 
   if (req.method === 'OPTIONS') {
-    return res.sendStatus(204);
+    return res.sendStatus(200);
   }
   next();
 });
@@ -103,6 +104,24 @@ const handleReadiness = (req, res) => {
 
 app.get('/ready', handleReadiness);
 app.get('/api/v1/ready', handleReadiness);
+
+// Google Cloud Console Callback URI Compatibility Forwarders
+// Directly route Google Cloud Console configured callback URI (/api/auth/google/callback)
+// to the auth router without duplicating handlers or mounting twice
+app.get('/api/auth/google/callback', (req, res, next) => {
+  req.url = '/google/callback' + (req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '');
+  authRouter(req, res, next);
+});
+
+app.get('/api/auth/google', (req, res, next) => {
+  req.url = '/google' + (req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '');
+  authRouter(req, res, next);
+});
+
+app.post('/api/auth/google/exchange', (req, res, next) => {
+  req.url = '/google/exchange';
+  authRouter(req, res, next);
+});
 
 // Versioned API Routes
 app.use('/api/v1/auth', authRouter);

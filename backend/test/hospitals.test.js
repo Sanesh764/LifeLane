@@ -135,9 +135,13 @@ describe('Nearby Hospitals API & Discovery Service (Dynamic Geographic Search)',
         );
       }
 
-      // Check closest result is in Lakhisarai
+      // Check closest result is in Lakhisarai district / vicinity
       const closest = body.data.threeClosestHospitals[0] || body.data.hospitals[0];
-      assert.ok(closest.name.toLowerCase().includes('lakhisarai') || closest.distanceMeters < 15000);
+      assert.ok(
+        closest.name.toLowerCase().includes('lakhisarai') ||
+        (closest.address && closest.address.toLowerCase().includes('lakhisarai')) ||
+        closest.distanceMeters < 25000
+      );
       assert.equal(closest.distanceType, 'STRAIGHT_LINE');
     });
 

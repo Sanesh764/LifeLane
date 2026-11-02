@@ -36,3 +36,9 @@ services:
         value: driver@amburoute.demo
       - key: INITIAL_DRIVER_PASSWORD
         sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        value: https://amburoute-backend-gb2v.onrender.com/api/auth/google/callback

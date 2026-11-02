@@ -107,4 +107,19 @@ export const env = {
     ttsModel: process.env.GROQ_TTS_MODEL || 'canopylabs/orpheus-v1-english',
     baseUrl: 'https://api.groq.com/openai/v1',
   },
+  GOOGLE: {
+    clientId: process.env.GOOGLE_CLIENT_ID || null,
+    clientSecret:
+      process.env.GOOGLE_CLIENT_SECRET || process.env['GOOGLE_CLIENT SECRET'] || null,
+    redirectUri:
+      process.env.GOOGLE_REDIRECT_URI ||
+      (isProduction
+        ? 'https://amburoute-backend-gb2v.onrender.com/api/auth/google/callback'
+        : 'http://localhost:5000/api/auth/google/callback'),
+    authorizedFrontendOrigins: [
+      'https://main.d37a0y0p7v19sh.amplifyapp.com',
+      'http://localhost:5173',
+      'http://localhost:3000',
+    ],
+  },
 };

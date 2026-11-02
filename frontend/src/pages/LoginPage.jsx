@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSimulation } from '../context/useSimulation.js';
+import { API_BASE_URL } from '../services/api.js';
 import { Card } from '../components/common/Card.jsx';
 import { Button } from '../components/common/Button.jsx';
 import {
@@ -9,6 +10,7 @@ import {
   ArrowRightIcon,
   CheckCircleIcon,
   RadioIcon,
+  GoogleIcon,
 } from '../components/common/Icons.jsx';
 import { Badge } from '../components/common/Badge.jsx';
 
@@ -19,9 +21,10 @@ import { Badge } from '../components/common/Badge.jsx';
  * 1. Public Citizen Login (PUBLIC_USER) -> Routes to /#public
  * 2. Public Citizen Registration (Auto PUBLIC_USER, status: active) -> Routes to /#public
  * 3. Verified Ambulance Driver Authorization (AMBULANCE_DRIVER) -> Routes to /#driver/home
+ * 4. Google Sign-In & Sign-Up (Exclusively for PUBLIC_USER citizen accounts)
  */
 export function LoginPage() {
-  const { login, register, pendingAction, setActiveTab, setDriverSubTab } = useSimulation();
+  const { login, register, getGoogleAuthUrl, pendingAction, setActiveTab, setDriverSubTab } = useSimulation();
 
   // 'public_login' | 'public_register' | 'driver_login'
   const [authMode, setAuthMode] = useState(() => {
@@ -40,6 +43,37 @@ export function LoginPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  // Check URL query parameters for redirect errors (e.g. from cancelled or denied Google OAuth)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const fullHash = window.location.hash || '';
+        const queryIndex = fullHash.indexOf('?');
+        const searchStr = queryIndex !== -1 ? fullHash.slice(queryIndex) : window.location.search;
+        if (searchStr) {
+          const params = new URLSearchParams(searchStr);
+          const err = params.get('error');
+          const code = params.get('code');
+          if (err) {
+            if (code === 'GOOGLE_AUTH_ROLE_RESTRICTED') {
+              setErrorMsg('Google Sign-In is restricted to public citizens. Verified ambulance drivers must use Driver Cockpit credentials.');
+            } else if (code === 'GOOGLE_AUTH_CANCELLED') {
+              setErrorMsg('Google sign-in was cancelled.');
+            } else {
+              setErrorMsg(err);
+            }
+            // Clean URL query string safely using replaceState
+            const cleanHash = fullHash.split('?')[0] || '#login';
+            window.history.replaceState(null, '', window.location.pathname + cleanHash);
+          }
+        }
+      } catch (parseErr) {
+        console.warn('[LoginPage] Error parsing URL parameters:', parseErr);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (pendingAction === 'START_AMBULANCE') {
@@ -59,6 +93,31 @@ export function LoginPage() {
     setErrorMsg('');
     setSuccessMsg('');
   };
+
+  const handleGoogleSignIn = useCallback(async () => {
+    if (isGoogleLoading || isSubmitting) return;
+
+    setIsGoogleLoading(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    try {
+      const targetOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
+      const result = await getGoogleAuthUrl(targetOrigin);
+
+      if (result.success && result.url) {
+        // Full page redirect to Google consent screen
+        window.location.href = result.url;
+      } else {
+        // Direct top-level navigation fallback (immune to third-party cookie restrictions)
+        window.location.href = `${API_BASE_URL}/auth/google?redirectUrl=${encodeURIComponent(targetOrigin)}`;
+      }
+    } catch (err) {
+      console.warn('[LoginPage] Fetching Google auth URL failed, falling back to top-level navigation:', err);
+      const targetOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
+      window.location.href = `${API_BASE_URL}/auth/google?redirectUrl=${encodeURIComponent(targetOrigin)}`;
+    }
+  }, [isGoogleLoading, isSubmitting, getGoogleAuthUrl]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -280,7 +339,7 @@ export function LoginPage() {
                 fullWidth
                 icon={ArrowRightIcon}
                 iconPosition="right"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isGoogleLoading}
               >
                 {isSubmitting
                   ? 'Connecting to Server...'
@@ -291,6 +350,38 @@ export function LoginPage() {
                   : 'Sign In to Public Network'}
               </Button>
             </div>
+
+            {/* Google Authentication (Strictly for Public Citizen Accounts) */}
+            {authMode !== 'driver_login' && (
+              <>
+                <div className="login-divider">
+                  <span>{authMode === 'public_register' ? 'or sign up with' : 'or continue with'}</span>
+                </div>
+
+                <div className="google-auth-wrap">
+                  <button
+                    type="button"
+                    className="btn-google-auth"
+                    onClick={handleGoogleSignIn}
+                    disabled={isSubmitting || isGoogleLoading}
+                    aria-label={authMode === 'public_register' ? 'Sign up with Google' : 'Continue with Google'}
+                  >
+                    {isGoogleLoading ? (
+                      <span className="google-btn-spinner" aria-hidden="true" />
+                    ) : (
+                      <GoogleIcon size={18} />
+                    )}
+                    <span>
+                      {isGoogleLoading
+                        ? 'Connecting to Google...'
+                        : authMode === 'public_register'
+                        ? 'Sign up with Google'
+                        : 'Continue with Google'}
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
 
             <div className="login-mode-switch" style={{ marginTop: '1rem', textAlign: 'center', fontSize: '0.875rem' }}>
               {authMode === 'public_login' && (
